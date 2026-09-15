@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AfroMedX Clinical Search</title>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="cross">✚</span> AfroMedX <span class="sub">Clinical Search</span></div>
+  <div class="badge">Malawi guidelines · grounded answers only</div>
+</header>
+
+<main class="wrap">
+  <section class="search-card">
+    <h1>Ask a clinical question</h1>
+    <p class="hint">Grounded in indexed Malawian guidelines. No reliable source → no clinical answer.</p>
+    <div class="searchrow">
+      <input id="q" type="search" autocomplete="off"
+        placeholder="What is the recommended treatment for severe malaria in an adult?" />
+      <button id="go">Search</button>
+    </div>
+    <div class="examples">
+      <button data-q="What is the dose of IV artesunate for severe malaria?">IV artesunate dose</button>
+      <button data-q="What are the diagnostic criteria for tuberculosis?">TB diagnosis</button>
+      <button data-q="When should ART be started in a newly diagnosed HIV patient?">ART initiation</button>
+    </div>
+    <div id="status" class="status"></div>
+  </section>
+
+  <section id="result" class="result hidden">
+    <h2 id="rTitle"></h2>
+    <div id="rAbstain" class="abstain hidden"></div>
+    <p id="rBody" class="body"></p>
+    <h3>Key points</h3>
+    <ul id="rPoints"></ul>
+    <h3>Source</h3>
+    <div id="rCite"></div>
+    <h3>Retrieved passages</h3>
+    <div id="rPassages"></div>
+  </section>
+</main>
+
+<footer>AfroMedX MVP · verify every answer against the cited guideline page.</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

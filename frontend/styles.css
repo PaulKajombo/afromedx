@@ -1,0 +1,26 @@
+:root { --ink:#10231a; --bg:#f4f7f4; --card:#ffffff; --accent:#0b6b4f; --line:#dce7df; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: "Segoe UI", system-ui, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+.topbar { display:flex; justify-content:space-between; align-items:center; padding:12px 20px; background:var(--ink); color:#fff; }
+.brand { font-weight:700; font-size:18px; } .brand .cross { color:#4ade80; } .brand .sub { font-weight:400; opacity:.8; }
+.badge { font-size:12px; background:#1d3a2d; padding:6px 10px; border-radius:20px; }
+.wrap { max-width:820px; margin:0 auto; padding:24px 16px 60px; }
+.search-card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px; }
+.search-card h1 { margin:0 0 4px; font-size:22px; }
+.hint { margin:0 0 14px; color:#4b5f54; font-size:14px; }
+.searchrow { display:flex; gap:8px; }
+.searchrow input { flex:1; padding:12px 14px; font-size:16px; border:1px solid var(--line); border-radius:10px; }
+.searchrow button { background:var(--accent); color:#fff; border:0; border-radius:10px; padding:0 22px; font-size:16px; cursor:pointer; }
+.examples { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+.examples button { background:#e9f3ec; border:1px solid var(--line); border-radius:20px; padding:6px 12px; cursor:pointer; font-size:13px; }
+.status { margin-top:10px; font-size:13px; color:#5b6f63; }
+.result { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px; margin-top:18px; }
+.hidden { display:none; }
+.result h2 { margin:0 0 8px; letter-spacing:.02em; }
+.body { line-height:1.55; }
+.abstain { background:#fef3c7; border:1px solid #f59e0b; padding:10px 12px; border-radius:8px; margin-bottom:10px; }
+#rPoints { line-height:1.6; }
+.cite { border-left:4px solid var(--accent); background:#f0f7f2; padding:10px 12px; margin:8px 0; font-size:14px; }
+.passage { border-top:1px solid var(--line); padding:10px 0; font-size:14px; color:#33463b; }
+.passage .meta { font-size:12px; color:#6b7f73; }
+footer { text-align:center; color:#6b7f73; font-size:12px; padding:20px; }

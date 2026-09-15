@@ -1,0 +1,80 @@
+"""Offline extractive provider: synthesizes ONLY from retrieved passages.
+
+Default when no API key is set. Preserves doses/numbers verbatim by quoting
+supporting sentences, always cites, and abstains when evidence is missing.
+"""
+from __future__ import annotations
+
+import re
+
+from .base import GroundedAnswer, LLMProvider
+
+ABSTAIN_TEXT = (
+    "I couldn't find sufficient information in the indexed Malawian guidelines "
+    "to answer this question reliably."
+)
+
+_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9(])")
+
+
+def _sentences(text: str) -> list[str]:
+    return [s.strip() for s in _SENT_RE.split(text.strip()) if s.strip()]
+
+
+def _clinically_rich(sent: str) -> int:
+    score = 0
+    if re.search(r"\d", sent):
+        score += 3  # doses, durations, thresholds matter most
+    if re.search(r"\b(mg|g|ml|mmol|iu|units?|mg/kg|mcg|tablets?|daily|bd|tds|qid|weekly|hours?|days?|weeks?)\b", sent, re.I):
+        score += 2
+    if re.search(r"\b(recommend|first-?line|treat|give|administer|diagnos|refer|contraindicat|avoid|monitor)\b", sent, re.I):
+        score += 2
+    return score
+
+
+class StubProvider(LLMProvider):
+    name = "stub"
+
+    def generate(self, question: str, passages: list[dict], doc_lookup: dict) -> GroundedAnswer:
+        if not passages:
+            return GroundedAnswer(title="No reliable source found", body_markdown=ABSTAIN_TEXT,
+                                  citations=[], abstained=True, grounded=True)
+        # collect candidate sentences from top passages
+        cands: list[tuple[int, str, dict]] = []
+        for p in passages[:6]:
+            chunk = p["chunk"]
+            for s in _sentences(chunk.get("text", ""))[:8]:
+                if len(s) < 25:
+                    continue
+                cands.append((_clinically_rich(s), s, chunk))
+        if not cands:
+            return GroundedAnswer(title="No reliable source found", body_markdown=ABSTAIN_TEXT,
+                                  citations=[], abstained=True, grounded=True)
+        cands.sort(key=lambda x: -x[0])
+        top = cands[:5]
+        body = " ".join(s for _, s, _ in top[:3])
+        key_points = [s for _, s, _ in top[:5]]
+        citations = []
+        seen = set()
+        for p in passages[:4]:
+            chunk = p["chunk"]
+            doc = doc_lookup.get(chunk.get("document_id"), {})
+            key = (chunk.get("document_id"), chunk.get("page"), chunk.get("section"))
+            if key in seen:
+                continue
+            seen.add(key)
+            citations.append({
+                "document": doc.get("title", chunk.get("document_id")),
+                "edition": doc.get("edition", ""),
+                "year": doc.get("publication_year"),
+                "section": chunk.get("section", ""),
+                "subsection": chunk.get("subsection", ""),
+                "page": chunk.get("page"),
+                "chunk_id": chunk.get("id"),
+                "excerpt": chunk.get("text", "")[:400],
+                "score": round(float(p.get("score", 0)), 3),
+            })
+        first = passages[0]["chunk"]
+        sec = (first.get("section") or "Guideline evidence").upper()
+        return GroundedAnswer(title=sec, body_markdown=body, key_points=key_points,
+                              citations=citations, abstained=False, grounded=True)
