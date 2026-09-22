@@ -18,7 +18,7 @@ _STOP = frozenset(
     "this that these those it its into over under after before between through "
     "what how when where which who whom do does did can could should would may "
     "might will shall have has had having not no yes if then than so such very "
-    "more most other some any each per".split()
+    "more most other some any each per you your why".split()
 )
 
 
@@ -62,6 +62,40 @@ class TfidfEmbedder:
         norms = np.linalg.norm(mat, axis=1, keepdims=True) + 1e-9
         return (mat / norms).astype(np.float32)
 
+    def encode_sparse(self, texts: list[str]):
+        """Same TF-IDF vectors as encode(), but as a CSR matrix.
+
+        Keeps memory/disk proportional to non-zero terms instead of
+        n_chunks x vocab (which is ~1 GB for the full Malawi corpus).
+        """
+        from scipy import sparse
+
+        if not self.vocab:
+            self.fit(texts)
+        indptr = [0]
+        indices: list[int] = []
+        data: list[float] = []
+        for t in texts:
+            counts: dict[int, float] = {}
+            for tok in _tokens(t):
+                j = self.vocab.get(tok)
+                if j is not None:
+                    counts[j] = counts.get(j, 0.0) + 1.0
+            for j, c in counts.items():
+                indices.append(j)
+                data.append(c)
+            indptr.append(len(indices))
+        mat = sparse.csr_matrix(
+            (np.asarray(data, dtype=np.float32), indices, np.asarray(indptr)),
+            shape=(len(texts), len(self.vocab)),
+        )
+        if self.idf.shape[0] == mat.shape[1]:
+            mat = (mat @ sparse.diags(self.idf)).tocsr()
+        norms = np.sqrt(mat.multiply(mat).sum(axis=1)).A.ravel() + 1e-9
+        mat = (sparse.diags(1.0 / norms) @ mat).tocsr()
+        return mat.astype(np.float32)
+
+
     @property
     def dim(self) -> int:
         return len(self.vocab)
@@ -81,7 +115,8 @@ class SentenceTransformerEmbedder:
         pass
 
     def encode(self, texts: list[str]) -> np.ndarray:
-        vecs = self._model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+        vecs = self._model.encode(texts, normalize_embeddings=True,
+                                  show_progress_bar=len(texts) > 200)
         return np.asarray(vecs, dtype=np.float32)
 
     @property

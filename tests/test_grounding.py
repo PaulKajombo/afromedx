@@ -20,6 +20,18 @@ def test_abstains_without_evidence():
     assert "couldn't find sufficient information" in ans.body_markdown
 
 
+def test_abstains_when_passages_do_not_cover_question():
+    # "repair" appears in the passage, but the question is about a bicycle tyre:
+    # topical overlap alone must not yield an answer (NO SOURCE = NO ANSWER).
+    chunk = {"id": "d::p119::0", "document_id": "d", "page": 119,
+             "section": "Surgery", "subsection": "",
+             "text": ("Repair is not an emergency: a lacerated extensor tendon "
+                      "should be closed within 48 hours in theatre.")}
+    ans = StubProvider().generate("how do i repair a bicycle tyre",
+                                  [{"chunk": chunk, "score": 0.45}], {})
+    assert ans.abstained
+
+
 def test_cites_and_preserves_dose():
     ans = StubProvider().generate("artesunate dose?", _passages(),
                                   {"d": {"title": "Malaria Guideline", "edition": "2023", "publication_year": 2023}})

@@ -18,6 +18,9 @@ body { margin:0; font-family: "Segoe UI", system-ui, Arial, sans-serif; backgrou
 .hidden { display:none; }
 .result h2 { margin:0 0 8px; letter-spacing:.02em; }
 .body { line-height:1.55; }
+.body p { margin:0 0 8px; }
+.body ul { margin:4px 0 10px; padding-left:22px; }
+.body h4 { margin:12px 0 4px; font-size:15px; }
 .abstain { background:#fef3c7; border:1px solid #f59e0b; padding:10px 12px; border-radius:8px; margin-bottom:10px; }
 #rPoints { line-height:1.6; }
 .cite { border-left:4px solid var(--accent); background:#f0f7f2; padding:10px 12px; margin:8px 0; font-size:14px; }

@@ -15,6 +15,53 @@ class IngestionResult:
     chunks: list[Chunk]
 
 
+def _norm_exact(line: str) -> str:
+    """Case/whitespace-normalised line (digits preserved)."""
+    import re
+    return re.sub(r"\s+", " ", line.lower()).strip()
+
+
+def _norm_digits(line: str) -> str:
+    """Like _norm_exact but digits collapsed to '#'. Only used on short
+    lines so 'Page 12'/'Page 13' footers match without risking real content."""
+    import re
+    return re.sub(r"\s+", " ", re.sub(r"\d+", "#", line.lower())).strip()
+
+
+def strip_running_lines(pages: list[PageText], min_pages: int = 3, ratio: float = 0.25) -> list[PageText]:
+    """Remove running headers/footers: short lines repeated on many pages.
+
+    Real guideline PDFs repeat programme names, dates and page labels on every
+    page; left in, they pollute both retrieval and section detection.
+    """
+    exact_occ: dict[str, set[int]] = {}
+    digit_occ: dict[str, set[int]] = {}
+    for p in pages:
+        for line in p.text.split("\n"):
+            e = _norm_exact(line)
+            if e:
+                exact_occ.setdefault(e, set()).add(p.page)
+            if 0 < len(line.strip()) <= 40:
+                digit_occ.setdefault(_norm_digits(line), set()).add(p.page)
+    threshold = max(min_pages, int(round(ratio * len(pages))))
+    drop_exact = {k for k, where in exact_occ.items() if len(where) >= threshold and len(k) <= 80}
+    drop_digit = {k for k, where in digit_occ.items() if len(where) >= threshold}
+    if not drop_exact and not drop_digit:
+        return pages
+
+    def keep(line: str) -> bool:
+        if _norm_exact(line) in drop_exact:
+            return False
+        if 0 < len(line.strip()) <= 40 and _norm_digits(line) in drop_digit:
+            return False
+        return True
+
+    out: list[PageText] = []
+    for p in pages:
+        out.append(PageText(page=p.page, text="\n".join(ln for ln in p.text.split("\n") if keep(ln))))
+    return out
+
+
 def ingest_pages(
     pages: list[PageText],
     *,
@@ -33,6 +80,7 @@ def ingest_pages(
     usable = [p for p in pages if p.text.strip()]
     if not usable:
         raise ValueError("No extractable text found")
+    usable = strip_running_lines(usable)
     blocks = split_into_blocks(usable)
     raw = chunk_blocks(blocks)
     if not raw:
