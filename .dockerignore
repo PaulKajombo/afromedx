@@ -1,0 +1,11 @@
+# Never baked into the image: secrets, local env, VCS, caches.
+.env
+.venv/
+.git/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.DS_Store
+# Authoritative PDFs ship via the explicit COPY in Dockerfile, not wildcards.
+# (Nothing else excluded: tests stay out via selective COPY, not ignore rules.)

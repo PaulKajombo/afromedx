@@ -125,6 +125,29 @@ def api_documents():
     return {"documents": list(_store.docs.values()), "chunks": _store.count()}
 
 
+def _resolve_pdf_path(stored_path: str) -> str | None:
+    """Resolve a guideline PDF, tolerating relocated deployments.
+
+    The index stores the ingest-time absolute path (e.g. a Windows path),
+    which does not exist inside a Linux container. Fall back to the file's
+    basename inside known guideline directories. Returns None when absent.
+    """
+    if stored_path and os.path.splitext(stored_path)[1].lower() == ".pdf" \
+            and os.path.isfile(stored_path):
+        return stored_path
+    name = (stored_path or "").replace("\\", "/").split("/")[-1]
+    if not name.lower().endswith(".pdf") or not name:
+        return None
+    for directory in ("Malawi Guidelines", "guidelines",
+                      getattr(settings, "guideline_dir", "")):
+        if not directory:
+            continue
+        candidate = os.path.join(directory, name)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 @router.get("/guideline/{document_id}/pdf")
 def api_guideline_pdf(document_id: str):
     """Serve a guideline PDF, keyed by document id only (no path input).
@@ -136,9 +159,8 @@ def api_guideline_pdf(document_id: str):
     doc = (_store.docs or {}).get(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="unknown document")
-    path = doc.get("file_path", "")
-    if (not path or os.path.splitext(path)[1].lower() != ".pdf"
-            or not os.path.isfile(path)):
+    path = _resolve_pdf_path(doc.get("file_path", ""))
+    if not path:
         raise HTTPException(status_code=404,
                             detail="source PDF not available on this server")
     return FileResponse(path, media_type="application/pdf",

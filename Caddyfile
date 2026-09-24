@@ -1,0 +1,5 @@
+# Public entry: https://app.afromedx.com (TLS automatic via Let's Encrypt).
+# Point the `app` DNS record at this server, then `docker compose up -d`.
+app.afromedx.com {
+	reverse_proxy app:8000
+}

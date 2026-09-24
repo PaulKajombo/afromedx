@@ -1,0 +1,35 @@
+# AfroMedX production stack: app + automatic HTTPS.
+# Secrets come ONLY from the server's .env file (never baked into images).
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health',timeout=10).status==200 else 1)"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 120s  # SBERT model load on cold boot
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:

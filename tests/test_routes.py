@@ -63,3 +63,21 @@ def test_pdf_no_path_traversal_possible():
             routes.api_guideline_pdf("../../secret")
     finally:
         routes.set_store(prev)
+
+
+def test_pdf_windows_abspath_falls_back_to_local_copy(tmp_path, monkeypatch):
+    # Indexes built on Windows store 'C:\\...' paths; on Linux/containers the
+    # file is resolved by basename inside the guideline directory.
+    gdir = tmp_path / "Malawi Guidelines"
+    gdir.mkdir()
+    (gdir / "g.pdf").write_bytes(b"%PDF-1.4\n%test\n")
+    monkeypatch.chdir(tmp_path)
+    prev = _use_store(_FakeStore({"d1": {"id": "d1",
+                                         "file_path": "C:\\docs\\g.pdf"}}))
+    try:
+        resp = routes.api_guideline_pdf("d1")
+        assert os.path.isfile(resp.path)
+        assert resp.path.replace("\\", "/").endswith("Malawi Guidelines/g.pdf")
+        assert resp.media_type == "application/pdf"
+    finally:
+        routes.set_store(prev)
