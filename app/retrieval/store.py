@@ -21,6 +21,52 @@ class VectorStore:
         self.docs: dict[str, dict] = {}
         self.vectors: np.ndarray | None = None
         os.makedirs(index_dir, exist_ok=True)
+        self._reset_text_cache()
+
+    # ---- query-time text caches (perf: precompute once, not per query) ----
+    def _reset_text_cache(self) -> None:
+        self.chunk_token_sets: list[set[str]] = []
+        self.meta_token_sets: list[set[str]] = []
+        self.corpus_terms: set[str] = set()
+        self.term_buckets: dict[str, list[str]] = {}
+        self.df_body: dict[str, int] = {}
+        self.df_meta: dict[str, int] = {}
+
+    def rebuild_text_cache(self) -> None:
+        """Token sets, document frequencies, and term buckets for keyword paths.
+
+        Called after any corpus change (add_documents, load). Without this,
+        every query re-tokenizes all chunks (~5 s at 13k chunks); with it,
+        keyword work drops to milliseconds with IDENTICAL scores.
+        """
+        from collections import Counter
+
+        from .search import tokenize
+        self._reset_text_cache()
+        self.chunk_token_sets = [set(tokenize(c.get("text", ""))) for c in self.chunks]
+        self.meta_token_sets = [set(tokenize(
+            f"{self.docs.get(c.get('document_id'), {}).get('title', '')} "
+            f"{c.get('section', '')} {c.get('subsection', '')}")) for c in self.chunks]
+        df: Counter[str] = Counter()
+        for s in self.chunk_token_sets:
+            df.update(s)
+        self.df_body = dict(df)
+        dfm: Counter[str] = Counter()
+        for s in self.meta_token_sets:
+            dfm.update(s)
+        self.df_meta = dict(dfm)
+        terms: set[str] = set()
+        for s in self.chunk_token_sets:
+            terms.update(s)
+        for s in self.meta_token_sets:
+            terms.update(s)
+        self.corpus_terms = terms
+        buckets: dict[str, list[str]] = {}
+        for t in terms:
+            buckets.setdefault(t[:1], []).append(t)
+        for v in buckets.values():
+            v.sort()  # deterministic fuzzy tie-breaks (dist, then shortest, then lexical)
+        self.term_buckets = buckets
 
     # ---- writes ----
     def reset(self) -> None:
@@ -28,6 +74,7 @@ class VectorStore:
         self.chunks = []
         self.docs = {}
         self.vectors = None
+        self._reset_text_cache()
 
     def add_document(self, doc: dict, chunks: list[dict]) -> None:
         self.add_documents([(doc, chunks)])
@@ -44,6 +91,7 @@ class VectorStore:
             self.docs[doc["id"]] = doc
             self.chunks.extend(chunks)
         self._rebuild_vectors()
+        self.rebuild_text_cache()
 
     def _rebuild_vectors(self) -> None:
         texts = [c.get("text", "") for c in self.chunks]
@@ -128,6 +176,7 @@ class VectorStore:
             self.vectors = vecs
         else:
             self._rebuild_vectors()
+        self.rebuild_text_cache()
         return True
 
     def count(self) -> int:

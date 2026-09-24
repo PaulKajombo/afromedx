@@ -5,17 +5,14 @@ const res = document.getElementById("result");
 const stepsEl = document.getElementById("steps");
 const stepNote = document.getElementById("stepnote");
 
-// ---- first-run splash (mock phone screen): shown once, then remembered ----
+// ---- splash: logo on white, auto-dismisses shortly after load ----
 (function splash() {
-  let seen = null;
-  try { seen = localStorage.getItem("afromedx.started"); } catch (e) {}
-  if (seen) return;
   const el = document.getElementById("splash");
   el.classList.remove("hidden");
-  document.getElementById("getStarted").addEventListener("click", () => {
-    try { localStorage.setItem("afromedx.started", "1"); } catch (e) {}
-    el.classList.add("hidden");
-  });
+  setTimeout(() => {
+    el.classList.add("fade");
+    setTimeout(() => el.classList.add("hidden"), 400);
+  }, 900);
 })();
 
 // ---- mobile drawer ----
@@ -197,7 +194,7 @@ async function doSearch() {
     render(data, query);
     saveHistory(query, data.answer);
     stepsDone();
-    statusEl.textContent = `Done · ${data.meta.chunks_indexed} chunks indexed · provider: ${data.answer.provider}`;
+    statusEl.textContent = "";
   } catch (e) {
     stepsHide();
     statusEl.textContent = "Search failed: " + e.message;

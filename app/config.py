@@ -62,6 +62,9 @@ class Settings:
         d.strip() for d in _get("AFROMEDX_EXCLUDE_DOCS",
                                 "paediatrics-handbook,obgyn").split(",") if d.strip())
     recency_weight: float = float(_get("AFROMEDX_RECENCY_WEIGHT", "0.02") or 0.02)
+    # Answer cache (perf): seconds a repeat answer is served without
+    # re-running retrieval + LLM. 0 disables. Cleared on /api/reload.
+    cache_ttl: float = float(_get("AFROMEDX_CACHE_TTL", "600") or 600)
     index_dir: str = _get("AFROMEDX_INDEX_DIR", "./data/index")
     guideline_dir: str = _get("AFROMEDX_GUIDELINE_DIR", "./data/guidelines")
     force_tfidf: bool = (_get("AFROMEDX_FORCE_TFIDF", "0") == "1")

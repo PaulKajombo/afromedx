@@ -46,6 +46,8 @@ def service_worker():
 
 @app.post("/api/reload", include_in_schema=False)
 def reload_index():
+    from .api.routes import clear_answer_cache
     store.load()
     set_store(store)
+    clear_answer_cache()
     return {"status": "reloaded", "chunks": store.count()}

@@ -153,7 +153,8 @@ def expand_bare_topic(query: str) -> str:
     return query
 
 
-def fuzzy_match(term: str, candidates: set[str], max_dist: int = 3) -> str | None:
+def fuzzy_match(term: str, candidates: set[str], max_dist: int = 3,
+                buckets: dict[str, list[str]] | None = None) -> str | None:
     """Closest candidate within max_dist edits ("asam" -> "asthma", dist 3).
 
     Only fires for tokens of length >= 4 against same-initial candidates of
@@ -165,20 +166,25 @@ def fuzzy_match(term: str, candidates: set[str], max_dist: int = 3) -> str | Non
     """
     if len(term) < 4:
         return None
+    if buckets is not None:
+        pool = [c for c in buckets.get(term[:1], [])
+                if c != term and abs(len(c) - len(term)) <= max_dist]
+    else:
+        pool = [c for c in candidates
+                if c and c != term and c[:1] == term[:1]
+                and abs(len(c) - len(term)) <= max_dist]
+    if not pool:
+        return None
     best: str | None = None
     best_d = max_dist + 1
-    for c in candidates:
-        if not c or c == term or c[:1] != term[:1]:
-            continue
-        if abs(len(c) - len(term)) > max_dist:
-            continue
+    for c in pool:
         d = _edit_distance(term, c)
         if d < best_d or (d == best_d and best is not None and len(c) < len(best)):
             best, best_d = c, d
     return best if best_d <= max_dist else None
 
 
-def term_covered(term: str, terms: set[str]) -> bool:
+def term_covered(term: str, terms: set[str], buckets: dict[str, list[str]] | None = None) -> bool:
     """Does a query term bridge to a term set? Exact, synonym, then fuzzy.
 
     Shared by the in-scope gate and the stub grounding gate so both treat
@@ -189,7 +195,7 @@ def term_covered(term: str, terms: set[str]) -> bool:
         return True
     if any(s in terms for s in synonyms_of(term)):
         return True
-    return fuzzy_match(term, terms) is not None
+    return fuzzy_match(term, terms, buckets=buckets) is not None
 
 
 def norm_text(text: str) -> str:
@@ -209,17 +215,27 @@ def expand(tokens: list[str]) -> set[str]:
     return out
 
 
-def keyword_scores(query: str, texts: list[str]) -> np.ndarray:
-    """IDF-weighted token overlap with synonym expansion. Returns 0..1 array."""
+def keyword_scores(query: str, texts: list[str] | None = None, *,
+                   token_sets: list[set[str]] | None = None,
+                   df: dict[str, int] | None = None) -> np.ndarray:
+    """IDF-weighted token overlap with synonym expansion. Returns 0..1 array.
+
+    Pass precomputed token_sets (+df) from the store to skip re-tokenizing the
+    corpus every query; scores are IDENTICAL to the inline computation.
+    """
     qtok = expand(tokenize(query))
-    if not qtok:
-        return np.zeros(len(texts), dtype=np.float32)
-    # document frequencies over the corpus
-    df: dict[str, int] = {}
-    tokenized = [set(tokenize(t)) for t in texts]
-    for toks in tokenized:
-        for t in toks:
-            df[t] = df.get(t, 0) + 1
+    n = len(token_sets) if token_sets is not None else len(texts or [])
+    if not qtok or not n:
+        return np.zeros(max(n, len(texts or [])), dtype=np.float32)
+    if token_sets is None:
+        tokenized = [set(tokenize(t)) for t in (texts or [])]
+    else:
+        tokenized = token_sets
+    if df is None:
+        df = {}
+        for toks in tokenized:
+            for t in toks:
+                df[t] = df.get(t, 0) + 1
     # Spelling tolerance: tokens absent from the corpus are replaced by their
     # fuzzy correction ("asam" -> "asthma") so a typo neither dilutes the
     # score via max-IDF nor misses the overlap. Tokens with no close match
@@ -233,11 +249,11 @@ def keyword_scores(query: str, texts: list[str]) -> np.ndarray:
             fix = fuzzy_match(t, vocab)
             corrected.add(fix if fix else t)
     qtok = expand(corrected)
-    n = max(1, len(texts))
+    n = max(1, n)
     import math
     idf = {t: math.log((n + 1) / (c + 1)) + 1.0 for t, c in df.items()}
     qidf = sum(idf.get(t, math.log(n + 1) + 1.0) for t in qtok)
-    scores = np.zeros(len(texts), dtype=np.float32)
+    scores = np.zeros(len(tokenized), dtype=np.float32)
     for i, toks in enumerate(tokenized):
         hit = qtok.intersection(toks)
         # also count synonym hits already in expanded set
@@ -328,7 +344,8 @@ def _term_set(texts: list[str]) -> set[str]:
     return ts
 
 
-def _in_scope(query: str, texts: list[str], corpus_terms: set[str]) -> bool:
+def _in_scope(query: str, texts: list[str], corpus_terms: set[str],
+              buckets: dict[str, list[str]] | None = None) -> bool:
     """Out-of-scope gate: abstain unless a MAJORITY of the query's significant
     tokens (or their synonyms) can be found in the indexed corpus.
 
@@ -347,9 +364,9 @@ def _in_scope(query: str, texts: list[str], corpus_terms: set[str]) -> bool:
         if any(s in corpus_terms for s in synonyms_of(t)):
             return 1.0
         # A fuzzy bridge is weaker evidence of intent than an exact term: it
-        # counts half, so a lone near-miss ("tyre" -> "type") can never pass
-        # the gate on its own, while a typo among known terms still retrieves.
-        return 0.5 if fuzzy_match(t, corpus_terms) is not None else 0.0
+        # counts half, so a lone near-miss ("tyre" -> "type") can never pass the
+        # gate on its own, while a typo among known terms still retrieves.
+        return 0.5 if fuzzy_match(t, corpus_terms, buckets=buckets) is not None else 0.0
 
     covered = sum(coverage(t) for t in sig)
     # NOTE: >= (not >): two half-bridges ("avoided"+"asam") carry as much
@@ -385,7 +402,18 @@ def search(
     docs = getattr(store, "docs", {}) or {}
     meta = [f"{docs.get(c.get('document_id'), {}).get('title', '')} "
             f"{c.get('section', '')} {c.get('subsection', '')}" for c in store.chunks]
-    if not _in_scope(q, texts, _term_set(texts + meta)):
+    # Precomputed corpus structures when the store provides them (identical
+    # scores, milliseconds instead of seconds); otherwise compute inline.
+    c_tok = getattr(store, "chunk_token_sets", None)
+    m_tok = getattr(store, "meta_token_sets", None)
+    c_terms = getattr(store, "corpus_terms", None)
+    buckets = getattr(store, "term_buckets", None)
+    df_body = getattr(store, "df_body", None)
+    df_meta = getattr(store, "df_meta", None)
+    cached = bool(c_tok and m_tok and c_terms is not None and len(c_tok) == len(texts))
+    gate_terms = c_terms if cached else _term_set(texts + meta)
+    gate_buckets = buckets if cached else None
+    if not _in_scope(q, texts, gate_terms, buckets=gate_buckets):
         return []
 
     # Bare-topic expansion (retrieval only): the original question is kept for
@@ -402,14 +430,16 @@ def search(
     except Exception:
         sem = np.zeros(len(texts), dtype=np.float32)
 
-    kw = keyword_scores(rq, texts)
+    kw = (keyword_scores(rq, None, token_sets=c_tok, df=df_body)
+          if cached else keyword_scores(rq, texts))
     # P1A: section/subsection/document-title matches, query-time only.
     # Headings are metadata (never embedded), so without this arm a section
     # titled exactly like the question (e.g. "When To Start Art") is invisible
     # to ranking. Blend is explicit via settings.section_weight (0 disables).
     sw = settings.section_weight if section_weight is None else section_weight
     if sw and sw > 0:
-        kw_meta = keyword_scores(rq, meta)
+        kw_meta = (keyword_scores(rq, None, token_sets=m_tok, df=df_meta)
+                   if cached else keyword_scores(rq, meta))
         kw = (1.0 - sw) * kw + sw * kw_meta
     fused = semantic_weight * sem + (1.0 - semantic_weight) * kw
     # Edition policy: drop superseded documents, then favour newer editions.

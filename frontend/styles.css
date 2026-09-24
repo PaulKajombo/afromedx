@@ -221,8 +221,7 @@ footer .footbrand { color:var(--brand-dark); font-weight:700; }
   .librow { flex-direction:column; }
   .librow label { align-self:flex-start; }
   .tabs { flex-wrap:wrap; }
-  .splash-mark { font-size:32px; }
-  .splash-tag { font-size:18px; }
+  .splash-mark { font-size:34px; }
 }
 @media (max-width: 440px) {
   .searchrow { flex-direction:column; }
@@ -235,15 +234,11 @@ footer .footbrand { color:var(--brand-dark); font-weight:700; }
 }
 .body, .cite, .guide, .histrow, .doserow span { overflow-wrap:anywhere; }
 
-/* ---------- splash ---------- */
-.splash { position:fixed; inset:0; z-index:100;
-  background:linear-gradient(180deg, var(--brand-dark), var(--brand-deep));
-  display:flex; align-items:center; justify-content:center; padding:20px; }
+/* ---------- launch splash: logo on white, auto-dismissed ---------- */
+.splash { position:fixed; inset:0; z-index:100; background:#fff;
+  display:flex; align-items:center; justify-content:center;
+  transition:opacity .35s ease; }
 .splash.hidden { display:none; }
-.splash-card { text-align:center; color:#fff; max-width:340px; }
-.splash-mark { font-size:38px; }
-.splash-tag { font-size:19px; margin:14px 0; line-height:1.4; }
-.splash-feats { list-style:none; margin:0 0 22px; padding:0; text-align:left; font-size:13.5px; }
-.splash-feats li { padding:7px 0 7px 28px; position:relative; opacity:.95; }
-.splash-feats li::before { content:"✓"; position:absolute; left:6px; font-weight:700; }
-.splash-btn { width:100%; font-size:16px; }
+.splash.fade { opacity:0; pointer-events:none; }
+.splash-mark { font-size:44px; }
+.splash-mark .afro { color:var(--ink); }
