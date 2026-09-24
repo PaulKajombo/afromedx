@@ -1,12 +1,14 @@
-"""HTTP API: search (retrieve + grounded answer), documents, ingest status.
+"""HTTP API: search (retrieve + grounded answer), documents, guideline PDFs.
 
 Privacy: queries are not persisted; only transient in-memory processing.
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..config import settings
@@ -66,6 +68,27 @@ def api_search(req: SearchRequest):
 def api_documents():
     assert _store is not None
     return {"documents": list(_store.docs.values()), "chunks": _store.count()}
+
+
+@router.get("/guideline/{document_id}/pdf")
+def api_guideline_pdf(document_id: str):
+    """Serve a guideline PDF, keyed by document id only (no path input).
+
+    Lets the UI open the exact source at the cited page. Returns 404 when the
+    document is unknown or its PDF is not present on this server.
+    """
+    assert _store is not None
+    doc = (_store.docs or {}).get(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="unknown document")
+    path = doc.get("file_path", "")
+    if (not path or os.path.splitext(path)[1].lower() != ".pdf"
+            or not os.path.isfile(path)):
+        raise HTTPException(status_code=404,
+                            detail="source PDF not available on this server")
+    return FileResponse(path, media_type="application/pdf",
+                        headers={"Content-Disposition":
+                                 f'inline; filename="{document_id}.pdf"'})
 
 
 @router.get("/health")

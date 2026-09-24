@@ -35,6 +35,15 @@ def index():
     return {"message": "AfroMedX API running. Frontend not found.", "docs": "/docs"}
 
 
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    # Served from root (not /static) so the worker's scope covers "/".
+    fp = os.path.join(FRONTEND_DIR, "sw.js")
+    if os.path.exists(fp):
+        return FileResponse(fp, media_type="application/javascript")
+    return {"message": "no service worker"}
+
+
 @app.post("/api/reload", include_in_schema=False)
 def reload_index():
     store.load()

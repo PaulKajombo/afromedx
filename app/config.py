@@ -55,6 +55,13 @@ class Settings:
     # different doc ids) at query time, keeping the highest-scoring copy.
     # Query-time only; corpus untouched. 1 = on (default), 0 = off (ablation).
     collapse_dupes: bool = (_get("AFROMEDX_DEDUP_COLLAPSE", "1") == "1")
+    # Edition policy (title-page evidence documented in search.py):
+    # superseded documents are never retrieved; recency_weight adds a small
+    # [0, weight] bonus favouring newer editions (0 disables for ablation).
+    excluded_docs: frozenset = frozenset(
+        d.strip() for d in _get("AFROMEDX_EXCLUDE_DOCS",
+                                "paediatrics-handbook,obgyn").split(",") if d.strip())
+    recency_weight: float = float(_get("AFROMEDX_RECENCY_WEIGHT", "0.02") or 0.02)
     index_dir: str = _get("AFROMEDX_INDEX_DIR", "./data/index")
     guideline_dir: str = _get("AFROMEDX_GUIDELINE_DIR", "./data/guidelines")
     force_tfidf: bool = (_get("AFROMEDX_FORCE_TFIDF", "0") == "1")

@@ -1,0 +1,13 @@
+{
+  "name": "AfroMedX Clinical Search",
+  "short_name": "AfroMedX",
+  "description": "Malawian guidelines. Trusted answers.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#7E0B11",
+  "theme_color": "#ED1C24",
+  "icons": [
+    { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

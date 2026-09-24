@@ -42,6 +42,24 @@ _STRUCTURAL_RE = re.compile(
 _GUIDELINE_TRAILER_RE = re.compile(r"^\*{0,2}\s*guideline", re.IGNORECASE)
 
 
+def _near_dup(bullet: str, body_lines: list[str], threshold: float = 0.85) -> bool:
+    """True when a bullet is near-verbatim repetition of a body line.
+
+    Compares token sets; guards the Key-points section against echoing the
+    numbered answer above it. Topical overlap is expected — only ~identical
+    wording is dropped.
+    """
+    from ..retrieval.search import tokenize
+    bt = set(tokenize(bullet))
+    if not bt:
+        return True
+    for line in body_lines:
+        st = set(tokenize(line))
+        if st and len(bt & st) / max(len(bt), len(st)) >= threshold:
+            return True
+    return False
+
+
 def _clean_answer(body: str, bullets: list[str]) -> tuple[str, list[str]]:
     """Remove UI-duplicating structure from model output.
 
@@ -56,6 +74,8 @@ def _clean_answer(body: str, bullets: list[str]) -> tuple[str, list[str]]:
     for b in bullets or []:
         s = b.strip().lstrip("-•* ").strip()
         if not s or _STRUCTURAL_RE.match(s) or _GUIDELINE_TRAILER_RE.match(s):
+            continue
+        if _near_dup(s, kept):
             continue
         clean_bullets.append(s)
     return "\n".join(kept).strip(), clean_bullets
@@ -79,12 +99,28 @@ class OpenAICompatibleProvider(LLMProvider):
         user = (
             f"Clinical question: {question}\n\n"
             f"Guideline evidence (cite as [E1], [E2], ... with title + page):\n{_evidence_block(passages, doc_lookup)}\n\n"
-            "Write the answer as plain clinical prose (2-4 short paragraphs at most): start directly "
-            "with the recommended action, tagging supporting statements like [E2]. "
+            "Structure the answer as numbered levels, most authoritative first: "
+            "1. Gold standard / first-line recommendation from the newest applicable guideline, "
+            "with exact doses and durations. "
+            "2. Alternatives, each with the conditions under which it applies. "
+            "3. What NOT to do / contraindications, only if the evidence states them. "
+            "Include a dose, duration, alternative, or contraindication only when the supplied "
+            "passages explicitly support it and it is relevant to the question. Never infer a "
+            "missing regimen or combine details from separate contexts into one recommendation. "
+            "When guidelines conflict or their applicability is unclear, say so and cite the "
+            "relevant sources instead of choosing silently. "
+            "Put every drug name in **bold**. Tag supporting statements like [E2]. "
             "Do NOT add markdown headings, do NOT label sections ('Answer:', 'Key Points:', "
             "'Recommended Action:', 'Guideline:'), and do NOT append a source/Guideline trailer line — "
             "AfroMedX attaches verified citations from retrieval metadata itself. "
             "Separately list 3-6 key_points: short standalone clinical facts only, no headers or labels. "
+            "Key points must be condensed highlights — never copy body sentences verbatim. "
+            "Broad or bare-topic queries: if the question is just a clinical topic name or phrase "
+            "(for example 'HIV', 'TB', or 'migraine headache'), interpret it as a request for the "
+            "standard management overview — what the guidelines cover on diagnosis and first-line "
+            "treatment — and answer from the evidence; abstain for such queries only if the passages "
+            "contain nothing relevant to the condition at all. End such answers by suggesting "
+            "a more specific follow-up question. "
             "If the question itself is not about clinical patient care (for example vehicle repair "
             "or sports scores), abstain even if some retrieved words overlap — topical word overlap "
             "is not clinical evidence. "

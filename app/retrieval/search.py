@@ -123,6 +123,36 @@ def _edit_distance(a: str, b: str) -> int:
     return prev[-1]
 
 
+def _is_bare_topic(query: str) -> bool:
+    """True for statement/bare-phrase queries with no question or action framing.
+
+    "migraine headache" and "drugs you cannot give in asthma" name a topic
+    without saying what is wanted; "how do you treat ..." does. Detected on
+    normalized tokens: any question mark, wh-word, modal, or
+    treatment/management/diagnosis verb keeps the query as-is.
+    """
+    if "?" in query:
+        return False
+    toks = set(tokenize(query))
+    framed = {"what", "how", "when", "which", "who", "why", "can", "should",
+              "is", "are", "do", "does", "did", "will", "would", "could",
+              "treat", "treating", "treatment", "manage", "managing",
+              "management", "diagnose", "diagnosis", "dose", "prevent"}
+    return not (toks & framed)
+
+
+def expand_bare_topic(query: str) -> str:
+    """Append management framing to bare-topic queries (retrieval only).
+
+    The ORIGINAL question is always kept for answer generation, titles, and
+    evaluation — only ranking sees the expanded form, so a bare phrase
+    retrieves management content instead of definitional fragments.
+    """
+    if _is_bare_topic(query):
+        return query.strip() + " treatment management"
+    return query
+
+
 def fuzzy_match(term: str, candidates: set[str], max_dist: int = 3) -> str | None:
     """Closest candidate within max_dist edits ("asam" -> "asthma", dist 3).
 
@@ -216,6 +246,72 @@ def keyword_scores(query: str, texts: list[str]) -> np.ndarray:
     return scores
 
 
+# Edition policy (verified from the PDFs/index themselves, never guessed):
+# - paediatrics-handbook ("Malawian Handbook of Paediatrics") states on its
+#   title page: Third Edition published 2008. Superseded by
+#   paediatric-protocols-2018, COIN 2022 and the IMNCI materials -> EXCLUDED.
+# - obgyn ("OBGYN Guidelines.pdf") states: Version 3.0, 15 December 2017.
+#   Superseded by obs-gynae-2023 (Malawi Ob/Gyn Protocols 2023) -> EXCLUDED.
+# Exclusion is query-time only (the index is untouched) and reversible via
+# settings.excluded_docs.
+EXCLUDED_DOCS = frozenset({"paediatrics-handbook", "obgyn"})
+
+# Curated publication years, asserted ONLY where evidenced (filename edition
+# markers, manifest metadata, or the documents' own title pages as extracted
+# into the index). Docs not listed here are neutral: no boost, no penalty.
+# Evidence: malaria-treatment 6th Ed Jan 2025 + mstg 6th Ed 2023 appear
+# verbatim in their indexed chunks; the rest match manifest edition metadata.
+DOC_YEARS: dict[str, int] = {
+    "malaria-treatment": 2025,
+    "mstg": 2023,
+    "malaria-2020": 2020,
+    "hiv-2022": 2022,
+    "obs-gynae-2023": 2023,
+    "sti-2025": 2025,
+    "renal-2024": 2024,
+    "paediatric-ncd-2024": 2024,
+    "cancer-guidelines": 2026,
+    "viral-hepatitis-2023": 2023,
+    "imnci-2021": 2021,
+    "imnci-chartbooklet-2022": 2022,
+    "paediatric-protocols-2018": 2018,
+    "sobo-2018": 2018,
+    "coin-2022": 2022,
+    "coin-training-2017": 2017,
+    "iccm-2010": 2010,
+}
+
+
+def doc_year(document_id: str, docs: dict) -> int | None:
+    """Best-known publication year: stored metadata first, curated map second."""
+    meta_year = (docs.get(document_id, {}) or {}).get("publication_year")
+    if isinstance(meta_year, int):
+        return meta_year
+    return DOC_YEARS.get(document_id)
+
+
+def recency_bonus(document_id: str, docs: dict, weight: float) -> float:
+    """Small [0, weight] bonus favouring newer guidelines.
+
+    Newest dated doc gets the full weight, oldest dated doc gets ~0, undated
+    docs get exactly 0 (neutral). Kept at tie-break scale (default 0.02):
+    ablation showed 0.05 promotes merely-new docs (e.g. cancer-2026) over
+    topically-correct ones, while 0.02 preserves relevance order and only
+    settles near-ties. Same-topic edition conflicts are handled structurally
+    by excluding superseded editions (EXCLUDED_DOCS), not by this bonus.
+    """
+    if not weight or weight <= 0:
+        return 0.0
+    year = doc_year(document_id, docs)
+    if year is None:
+        return 0.0
+    years = list(DOC_YEARS.values())
+    lo, hi = min(years), max(years)
+    if hi <= lo:
+        return 0.0
+    return weight * (min(max(year, lo), hi) - lo) / (hi - lo)
+
+
 # Generic clinical glue terms — must NOT satisfy the in-scope coverage gate on their own.
 GENERIC_TERMS = frozenset(
     "recommend recommended recommend should use used give given start started begin "
@@ -275,39 +371,56 @@ def search(
     section_weight: float | None = None,
     max_per_doc: int | None = None,
     collapse_dupes: bool | None = None,
+    exclude_doc_ids: frozenset | set | None = None,
+    recency_weight: float | None = None,
 ) -> list[dict]:
     """Return ranked passages: [{chunk, semantic, keyword, score}]. Empty if below gate."""
     q = (query or "").strip()
     if not q or not store.chunks:
         return []
     texts = [c.get("text", "") for c in store.chunks]
-    if not _in_scope(q, texts, _term_set(texts)):
+    # Section/title terms count for the scope gate too: headings carry the
+    # clinical concepts ("When To Start Art") that body text may lack, and the
+    # keyword arm already ranks on them (P1A) — gate and ranking must agree.
+    docs = getattr(store, "docs", {}) or {}
+    meta = [f"{docs.get(c.get('document_id'), {}).get('title', '')} "
+            f"{c.get('section', '')} {c.get('subsection', '')}" for c in store.chunks]
+    if not _in_scope(q, texts, _term_set(texts + meta)):
         return []
+
+    # Bare-topic expansion (retrieval only): the original question is kept for
+    # answer generation; ranking sees management framing so "migraine headache"
+    # retrieves treatment content instead of definitional fragments.
+    rq = expand_bare_topic(q)
 
     # semantic cosine
     try:
-        qv = store.embedder.encode([q]).astype(np.float32).ravel()
+        qv = store.embedder.encode([rq]).astype(np.float32).ravel()
         qv = qv / (np.linalg.norm(qv) + 1e-9)
         sem = store.vectors @ qv if store.vectors is not None else np.zeros(len(texts))
         sem = np.clip(np.asarray(sem, dtype=np.float32).ravel(), 0, 1)
     except Exception:
         sem = np.zeros(len(texts), dtype=np.float32)
 
-    kw = keyword_scores(q, texts)
+    kw = keyword_scores(rq, texts)
     # P1A: section/subsection/document-title matches, query-time only.
     # Headings are metadata (never embedded), so without this arm a section
     # titled exactly like the question (e.g. "When To Start Art") is invisible
     # to ranking. Blend is explicit via settings.section_weight (0 disables).
     sw = settings.section_weight if section_weight is None else section_weight
     if sw and sw > 0:
-        docs = getattr(store, "docs", {}) or {}
-        meta = []
-        for c in store.chunks:
-            doc = docs.get(c.get("document_id"), {})
-            meta.append(f"{doc.get('title', '')} {c.get('section', '')} {c.get('subsection', '')}")
-        kw_meta = keyword_scores(q, meta)
+        kw_meta = keyword_scores(rq, meta)
         kw = (1.0 - sw) * kw + sw * kw_meta
     fused = semantic_weight * sem + (1.0 - semantic_weight) * kw
+    # Edition policy: drop superseded documents, then favour newer editions.
+    # Both are query-time only; the index is untouched.
+    excluded = settings.excluded_docs if exclude_doc_ids is None else set(exclude_doc_ids)
+    rw = settings.recency_weight if recency_weight is None else recency_weight
+    if rw and rw > 0:
+        docs = getattr(store, "docs", {}) or {}
+        bonus = np.array([recency_bonus(c.get("document_id"), docs, rw)
+                          for c in store.chunks], dtype=np.float32)
+        fused = fused + bonus
 
     order = np.argsort(-fused)
     # P1C: per-document diversity cap — repeated chunks from one document must
@@ -321,6 +434,8 @@ def search(
         c = store.chunks[int(idx)]
         if document_id and c.get("document_id") != document_id:
             continue
+        if c.get("document_id") in excluded:
+            continue  # superseded edition: never retrieved, never cited
         s = float(fused[int(idx)])
         if s < min_score:
             continue

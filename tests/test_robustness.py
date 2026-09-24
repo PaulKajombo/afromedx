@@ -45,6 +45,31 @@ def test_tokenize_normalizes_contractions():
     assert "not" in tokenize("drugs you cannot give")
 
 
+def test_bare_topic_expansion():
+    from app.retrieval.search import _is_bare_topic, expand_bare_topic
+    assert _is_bare_topic("migraine headache")
+    assert _is_bare_topic("drugs you cannot give in asthma")
+    assert not _is_bare_topic("how do you treat migraine headache")
+    assert not _is_bare_topic("What is the dose of IV artesunate?")
+    assert not _is_bare_topic("First line treatment for uncomplicated malaria")
+    expanded = expand_bare_topic("migraine headache")
+    assert "treatment" in expanded and "migraine" in expanded
+
+
+def test_bare_topic_ranks_management_content(tmp_path):
+    store = VectorStore(str(tmp_path), embedder=TfidfEmbedder())
+    # The treatment term lives in BODY text (headings alone never match the
+    # keyword arm); expansion must promote this chunk over the definition one.
+    pages = [PageText(page=10, text="MIGRAINE DEFINITION\nMigraine headache is a primary headache disorder."),
+             PageText(page=11, text="MIGRAINE TREATMENT\nMigraine headache treatment: give paracetamol "
+                                    "for migraine headache attacks.")]
+    res = ingest_pages(pages, doc_id="mig", title="Migraine Guideline")
+    store.add_document(res.document.to_dict(), [c.to_dict() for c in res.chunks])
+    hits = search(store, "migraine headache", top_k=2, min_score=0.01)
+    assert hits, "bare topic must retrieve"
+    assert "paracetamol" in hits[0]["chunk"]["text"]
+
+
 def test_misspelled_disease_retrieves(tmp_path):
     store = _seed_store(tmp_path)
     hits = search(store, "which drugs to avoid in asam", top_k=3, min_score=0.01)

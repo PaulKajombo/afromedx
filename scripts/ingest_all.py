@@ -61,7 +61,8 @@ DOC_META: dict[str, tuple[str, str, str, int | None, str]] = {
         ("imnci-2021", "Integrated Management of Newborn and Childhood Illness (IMNCI)",
          "2021", 2021, DEFAULT_SOURCE),
     "Malaria Treatment Guidelines.pdf":
-        ("malaria-treatment", "Malawi Malaria Treatment Guidelines", "", None, DEFAULT_SOURCE),
+        ("malaria-treatment", "Malawi Malaria Treatment Guidelines",
+         "6th Edition", 2025, DEFAULT_SOURCE),
     "Malawi Clinical HIV Guidelines 2022 edition 5 lowres.pdf":
         ("hiv-2022", "Malawi Clinical HIV Guidelines", "5th Edition", 2022, DEFAULT_SOURCE),
     "Malawi Integrated Management of Newborn and Childhood Illnesses Chartbooklet MoH August 2022.pdf":
@@ -71,11 +72,13 @@ DOC_META: dict[str, tuple[str, str, str, int | None, str]] = {
     "Malawi Paediatric NCD guidelines_FINAL_31.12.2024 (1).pdf":
         ("paediatric-ncd-2024", "Malawi Paediatric NCD Guidelines", "31.12.2024", 2024, DEFAULT_SOURCE),
     "Malawi Standard Treatment Guidelines (MSTG).pdf":
-        ("mstg", "Malawi Standard Treatment Guidelines (MSTG)", "", None, DEFAULT_SOURCE),
+        ("mstg", "Malawi Standard Treatment Guidelines (MSTG)",
+         "6th Edition", 2023, DEFAULT_SOURCE),
     "malawi-sti-guidelines-2025-5th-edition-version-3.pdf":
         ("sti-2025", "Malawi STI Guidelines", "5th Edition, Version 3", 2025, DEFAULT_SOURCE),
     "malawian_handbook_paediatrics.pdf":
-        ("paediatrics-handbook", "Malawian Handbook of Paediatrics", "", None, DEFAULT_SOURCE),
+        ("paediatrics-handbook", "Malawian Handbook of Paediatrics",
+         "Third Edition (2008, SUPERSEDED)", 2008, DEFAULT_SOURCE),
     "Malawi_Paediatric_Protocols_2018.pdf":
         ("paediatric-protocols-2018", "Malawi Paediatric Protocols", "2018", 2018, DEFAULT_SOURCE),
     "Malawi_Quick_e-Guide_-_for_key_peoplepdf.pdf":
@@ -85,7 +88,8 @@ DOC_META: dict[str, tuple[str, str, str, int | None, str]] = {
     "National renal protocols 1st Edition 2024.pdf":
         ("renal-2024", "National Renal Protocols", "1st Edition", 2024, DEFAULT_SOURCE),
     "OBGYN Guidelines.pdf":
-        ("obgyn", "Obstetrics and Gynaecology Guidelines", "", None, DEFAULT_SOURCE),
+        ("obgyn", "Obstetrics and Gynaecology Guidelines",
+         "Version 3.0 (2017, SUPERSEDED by obs-gynae-2023)", 2017, DEFAULT_SOURCE),
     "PPH_Treatment_Bundle Final A4.pdf":
         ("pph-bundle", "Postpartum Haemorrhage Treatment Bundle", "Final A4", None, DEFAULT_SOURCE),
     "Practical-manual-SOBO-Malawi-Feb-2018-final.pdf":

@@ -5,44 +5,174 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AfroMedX Clinical Search</title>
 <link rel="stylesheet" href="/static/styles.css" />
+<link rel="manifest" href="/static/manifest.webmanifest" />
+<meta name="theme-color" content="#ED1C24" />
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="apple-touch-icon" href="/static/icon.svg" />
 </head>
 <body>
-<header class="topbar">
-  <div class="brand"><span class="cross">✚</span> AfroMedX <span class="sub">Clinical Search</span></div>
-  <div class="badge">Malawi guidelines · grounded answers only</div>
-</header>
-
-<main class="wrap">
-  <section class="search-card">
-    <h1>Ask a clinical question</h1>
-    <p class="hint">Grounded in indexed Malawian guidelines. No reliable source → no clinical answer.</p>
-    <div class="searchrow">
-      <input id="q" type="search" autocomplete="off"
-        placeholder="What is the recommended treatment for severe malaria in an adult?" />
-      <button id="go">Search</button>
+<div id="splash" class="splash hidden">
+  <div class="splash-card">
+    <div class="wordmark splash-mark"><span class="afro">Afro</span><span class="medx">medX</span></div>
+    <p class="splash-tag">Better decisions.<br/>Healthier communities.</p>
+    <ul class="splash-feats">
+      <li>Trusted Malawian guidelines — official sources, always cited</li>
+      <li>AI-powered answers — clinical, relevant, with pages</li>
+      <li>Grounded search — no source means no answer</li>
+    </ul>
+    <button id="getStarted" class="btn splash-btn">Get Started</button>
+  </div>
+</div>
+<div class="mobilebar">
+  <button id="burger" aria-label="Open menu">☰</button>
+  <span class="wordmark mini"><span class="afro">Afro</span><span class="medx">medX</span></span>
+</div>
+<div id="scrim" class="scrim hidden"></div>
+<div class="app">
+  <aside class="sidebar">
+    <div>
+      <div class="wordmark"><span class="afro">Afro</span><span class="medx">medX</span></div>
+      <div class="tagline">For better health, for everyone</div>
     </div>
-    <div class="examples">
-      <button data-q="What is the dose of IV artesunate for severe malaria?">IV artesunate dose</button>
-      <button data-q="What are the diagnostic criteria for tuberculosis?">TB diagnosis</button>
-      <button data-q="When should ART be started in a newly diagnosed HIV patient?">ART initiation</button>
+    <nav class="nav">
+      <button data-view="home" class="active">⌂&nbsp; Home</button>
+      <button data-view="library">▤&nbsp; Guideline Library</button>
+      <button data-view="history">◷&nbsp; History</button>
+      <button data-view="sources">⧉&nbsp; Sources</button>
+      <button data-view="settings">⚙&nbsp; Settings</button>
+    </nav>
+    <div class="sidefoot">Malawi guidelines · grounded answers only</div>
+  </aside>
+
+  <main class="main">
+    <div class="wrap">
+      <section id="view-home" class="view">
+        <div class="hero">
+          <div class="wordmark hero-mark"><span class="afro">Afro</span><span class="medx">medX</span></div>
+          <div class="hero-sub">Clinical Guideline Assistant</div>
+          <p class="hint">Ask about a Malawian clinical guideline…</p>
+        </div>
+        <div class="search-card">
+          <h1>Ask a clinical question</h1>
+          <p class="hint">Grounded in indexed Malawian guidelines. No reliable source → no clinical answer.</p>
+          <div class="searchrow">
+            <input id="q" type="search" autocomplete="off"
+              placeholder="What is the recommended treatment for severe malaria in an adult?" />
+            <button id="go">Search</button>
+          </div>
+          <div class="examples">
+            <button data-q="Severe malaria in an adult">Severe malaria in an adult</button>
+            <button data-q="First-line antibiotic for CAP">First-line antibiotic for CAP</button>
+            <button data-q="HIV treatment first line">HIV treatment first line</button>
+            <button data-q="TB treatment regimen">TB treatment regimen</button>
+          </div>
+          <div id="status" class="status"></div>
+          <ol id="steps" class="steps hidden" aria-live="polite">
+            <li data-step="understand">Understanding your question…</li>
+            <li data-step="search">Searching Malawian guidelines…</li>
+            <li data-step="sections">Finding relevant sections…</li>
+            <li data-step="generate">Generating answer with citations…</li>
+          </ol>
+          <p id="stepnote" class="hint hidden">This may take a few seconds…</p>
+        </div>
+
+        <section id="result" class="result hidden">
+          <button id="backSearch" class="backlink">← Back to search</button>
+          <h2 id="rTitle"></h2>
+          <div class="modetoggle" id="modetoggle">
+            <button data-mode="full" class="active">Full answer</button>
+            <button data-mode="dose">Dose details</button>
+          </div>
+          <div id="rAbstain" class="abstain hidden"></div>
+          <div id="rWhy" class="hidden">
+            <p class="why">This could be because:</p>
+            <ul class="why">
+              <li>The guideline does not cover this topic yet</li>
+              <li>The question is too general</li>
+              <li>It may be in a different edition or programme guideline</li>
+            </ul>
+            <p class="why">Try rephrasing your question or <button id="browseBtn" class="linkbtn">browse the guideline library</button>.</p>
+            <div id="rRefine"></div>
+          </div>
+          <div id="rBody" class="body"></div>
+          <div id="rDose" class="hidden"></div>
+          <div id="rSrc"></div>
+          <h3 id="rPointsH">Key points</h3>
+          <ul id="rPoints"></ul>
+          <h3>Source</h3>
+          <div id="rCite"></div>
+        </section>
+      </section>
+
+      <section id="view-library" class="view hidden">
+        <div class="search-card">
+          <h1>Guideline Library</h1>
+          <p class="hint" id="libcount">Loading…</p>
+          <div class="librow">
+            <input id="libq" type="search" autocomplete="off" placeholder="Search guidelines…" />
+          </div>
+          <div class="tabs" id="libtabs">
+            <button data-tab="all" class="active">All</button>
+            <button data-tab="core" class="">Core</button>
+            <button data-tab="other" class="">Other</button>
+          </div>
+          <div id="liblist"></div>
+        </div>
+      </section>
+
+      <section id="view-history" class="view hidden">
+        <div class="search-card">
+          <h1>History</h1>
+          <p class="hint">Recent searches, stored only in this browser. <button id="clearHist" class="linkbtn">Clear history</button></p>
+          <div id="histlist"></div>
+        </div>
+      </section>
+
+      <section id="view-sources" class="view hidden">
+        <div class="search-card">
+          <h1>Sources</h1>
+          <p class="hint">Every answer cites these editions. Verify against the cited page.</p>
+          <div id="srclist"></div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view hidden">
+        <div class="search-card">
+          <h1>Settings</h1>
+          <p class="hint" id="setinfo">Loading…</p>
+          <div class="librow">
+            <label for="topk">Passages per question</label>
+            <select id="topk">
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="6" selected>6</option>
+            </select>
+          </div>
+          <p class="hint">Provider and model are configured on the server. History and preferences stay in this browser.</p>
+        </div>
+      </section>
     </div>
-    <div id="status" class="status"></div>
-  </section>
+    <footer>AfroMedX MVP · verify every answer against the cited guideline page.</footer>
+  </main>
+</div>
 
-  <section id="result" class="result hidden">
-    <h2 id="rTitle"></h2>
-    <div id="rAbstain" class="abstain hidden"></div>
-    <p id="rBody" class="body"></p>
-    <h3>Key points</h3>
-    <ul id="rPoints"></ul>
-    <h3>Source</h3>
-    <div id="rCite"></div>
-    <h3>Retrieved passages</h3>
-    <div id="rPassages"></div>
-  </section>
-</main>
-
-<footer>AfroMedX MVP · verify every answer against the cited guideline page.</footer>
+<div id="viewer" class="viewer hidden">
+  <div class="viewer-bar">
+    <button id="vBack" class="vbtn ghost">← Back</button>
+    <span class="vdoc"><b id="vTitle">Guideline</b><span id="vSub"></span></span>
+    <span class="vspace"></span>
+    <button id="vPrev" class="vbtn ghost">‹</button>
+    <span id="vPage" class="vpage"></span>
+    <button id="vNext" class="vbtn ghost">›</button>
+    <button id="vFull" class="vbtn ghost">⛶</button>
+    <button id="vClose" class="vbtn">✕</button>
+  </div>
+  <div id="thumbs" class="thumbstrip"></div>
+  <iframe id="vFrame" title="Guideline PDF"></iframe>
+</div>
 <script src="/static/app.js"></script>
 </body>
 </html>
