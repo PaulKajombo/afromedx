@@ -10,6 +10,7 @@ import re
 
 import numpy as np
 
+from .acronyms import expand_acronyms
 from .embedder import _STOP
 from ..config import settings
 
@@ -328,12 +329,52 @@ def recency_bonus(document_id: str, docs: dict, weight: float) -> float:
     return weight * (min(max(year, lo), hi) - lo) / (hi - lo)
 
 
-# Generic clinical glue terms — must NOT satisfy the in-scope coverage gate on their own.
+# Authority policy: designated gold-standard sources get a fixed bonus so the
+# current departmental protocol outranks older/general material on ITS topic.
+# emergency-assessment is the ED's latest protocol (added 2026-10-03) but only
+# has 4 thin wall-chart chunks, so it loses ties on text overlap alone.
+# Weight 0.08 is decisive within-topic yet far below cross-topic score gaps,
+# so it cannot promote the doc for unrelated questions. Override/disabled via
+# settings.doc_boost (AFROMEDX_DOC_BOOST, "doc:weight,..." — empty disables).
+DOC_BOOST: dict[str, float] = {
+    "emergency-assessment": 0.08,
+}
+
+
+def parse_doc_boost(raw: str) -> dict[str, float]:
+    """Parse "doc:weight,doc:weight" maps (env configuration)."""
+    out: dict[str, float] = {}
+    for part in (raw or "").split(","):
+        if ":" not in part:
+            continue
+        key, _, value = part.partition(":")
+        try:
+            out[key.strip()] = float(value)
+        except ValueError:
+            continue
+    return {k: v for k, v in out.items() if k}
+
+
+# Explicit supersession pairs (curated, title-page evidenced). When a superseded
+# document AND its successor are both retrieved for a question, superseded
+# chunks take a small penalty so the current edition ranks first. If the
+# successor is absent, older content is left alone (better than nothing).
+# Evidence: obgyn v3.0 2017 vs obs-gynae-2023; paediatrics-handbook 3rd ed
+# 2008 vs paediatric-protocols-2018; malaria 5th ed 2020 vs 6th ed 2025.
+SUPERSEDES: dict[str, str] = {
+    "obgyn": "obs-gynae-2023",
+    "paediatrics-handbook": "paediatric-protocols-2018",
+    "malaria-2020": "malaria-treatment",
+}
+SUPERSEDED_PENALTY = 0.03
+# Includes question-meta nouns ("results", "meaning"): they describe the
+# wanted answer, never the medicine, so they must not decide answerability.
 GENERIC_TERMS = frozenset(
     "recommend recommended recommend should use used give given start started begin "
     "patient patients child children adult adults dosed dosage medications medicine "
     "medication drug drugs therapy treat treated treating management treat manage "
-    "diagnose diagnosed diagnosis diagnostic identify investigation investigations".split()
+    "diagnose diagnosed diagnosis diagnostic identify investigation investigations "
+    "results result meaning interpretation".split()
 )
 
 
@@ -363,6 +404,14 @@ def _in_scope(query: str, texts: list[str], corpus_terms: set[str],
             return 1.0
         if any(s in corpus_terms for s in synonyms_of(t)):
             return 1.0
+        # Curated acronyms are known vocabulary: bridged (1.0) when any word
+        # of their corpus-evidenced expansion is present. Unknown tokens fall
+        # through to fuzzy matching below.
+        from .acronyms import ACRONYMS
+        phrases = ACRONYMS.get(t, ())
+        if phrases and any(w in corpus_terms
+                           for phrase in phrases for w in tokenize(phrase)):
+            return 1.0
         # A fuzzy bridge is weaker evidence of intent than an exact term: it
         # counts half, so a lone near-miss ("tyre" -> "type") can never pass the
         # gate on its own, while a typo among known terms still retrieves.
@@ -390,6 +439,8 @@ def search(
     collapse_dupes: bool | None = None,
     exclude_doc_ids: frozenset | set | None = None,
     recency_weight: float | None = None,
+    doc_boost: dict[str, float] | None = None,
+    superseded_penalty: float | None = None,
 ) -> list[dict]:
     """Return ranked passages: [{chunk, semantic, keyword, score}]. Empty if below gate."""
     q = (query or "").strip()
@@ -419,7 +470,9 @@ def search(
     # Bare-topic expansion (retrieval only): the original question is kept for
     # answer generation; ranking sees management framing so "migraine headache"
     # retrieves treatment content instead of definitional fragments.
-    rq = expand_bare_topic(q)
+    # Acronym expansion likewise appends corpus-evidenced phrases
+    # ("CAP ... community-acquired pneumonia") for ranking only.
+    rq = expand_acronyms(expand_bare_topic(q))
 
     # semantic cosine
     try:
@@ -451,6 +504,28 @@ def search(
         bonus = np.array([recency_bonus(c.get("document_id"), docs, rw)
                           for c in store.chunks], dtype=np.float32)
         fused = fused + bonus
+    # Authority policy: fixed per-document bonuses for designated
+    # gold-standard sources (see DOC_BOOST). Query-time only.
+    if doc_boost is None:
+        raw = getattr(settings, "doc_boost_raw", "")
+        boosts = DOC_BOOST if not raw else parse_doc_boost(raw)
+    else:
+        boosts = doc_boost
+    if boosts:
+        fused = fused + np.array([float(boosts.get(c.get("document_id"), 0.0))
+                                  for c in store.chunks], dtype=np.float32)
+    # Supersession preference: penalize superseded chunks only when their
+    # successor also competes (present in the candidate window judged on
+    # pre-penalty scores). Order is recomputed after. Query-time only.
+    sp = settings.superseded_penalty if superseded_penalty is None else superseded_penalty
+    if sp and sp > 0:
+        window_docs = {store.chunks[int(i)].get("document_id")
+                       for i in np.argsort(-fused)[: max(top_k * 3, top_k)]}
+        penalized = {old for old, new in SUPERSEDES.items() if new in window_docs}
+        if penalized:
+            fused = fused - np.array(
+                [sp if c.get("document_id") in penalized else 0.0
+                 for c in store.chunks], dtype=np.float32)
 
     order = np.argsort(-fused)
     # P1C: per-document diversity cap — repeated chunks from one document must

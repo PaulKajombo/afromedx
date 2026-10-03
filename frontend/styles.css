@@ -104,6 +104,13 @@ button { font-family:inherit; }
 .rechead { font-size:14px; font-weight:600; margin:10px 0 4px; }
 .result h3 { margin:16px 0 6px; font-size:14px; font-weight:600; }
 .body { font-size:14.5px; }
+/* Continuing numbering: split <ol> blocks share one counter so a list broken
+   across blocks can never restart at 1 (backend renumbering covers API text;
+   this covers rendering). */
+.body { counter-reset: ansitem; }
+.body ol { list-style:none; }
+.body ol > li { counter-increment:ansitem; }
+.body ol > li::before { content:counter(ansitem) ". "; font-weight:600; }
 .body p { margin:0 0 8px; }
 .body ul, .body ol { margin:4px 0 10px; padding-left:22px; }
 .body li { margin-bottom:5px; }

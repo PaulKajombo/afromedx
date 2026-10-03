@@ -2,8 +2,8 @@
   "generated_at": "2026-09-21T14:05:19.027979+00:00",
   "pdf_dir": "C:\\Users\\PaulT\\Afromedx V1\\Malawi Guidelines",
   "embedder": "sbert:all-MiniLM-L6-v2",
-  "total_chunks": 13072,
-  "documents_indexed": 29,
+  "total_chunks": 13076,
+  "documents_indexed": 30,
   "documents": [
     {
       "file": "2_NCD Job Aids-1 (1).pdf",
@@ -380,6 +380,19 @@
       "pages": 300,
       "chars": 574878,
       "chunks": 793,
+      "status": "ok"
+    },
+    {
+      "file": "Emergency_Assessment_V2.pdf",
+      "doc_id": "emergency-assessment",
+      "title": "Emergency Assessment and Immediate Treatment",
+      "edition": "V2",
+      "publication_year": null,
+      "source": "Malawi Ministry of Health",
+      "checksum": "8deac2f4d182e00e5eb0df82317fbfc3f1ac75c58d7c7a40e728cbfa37cfd87a",
+      "pages": 2,
+      "chars": 5461,
+      "chunks": 4,
       "status": "ok"
     }
   ],

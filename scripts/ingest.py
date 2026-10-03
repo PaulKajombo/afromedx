@@ -6,6 +6,8 @@ Example:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import sys
 
@@ -15,6 +17,46 @@ from app.config import settings
 from app.ingestion.pipeline import ingest_pdf
 from app.retrieval.embedder import get_embedder
 from app.retrieval.store import VectorStore
+
+
+def _sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def update_manifest(manifest_path: str, *, filename: str, doc_id: str,
+                    title: str, edition: str, year: int | None, source: str,
+                    checksum: str, pages: int, chars: int, chunks: int) -> bool:
+    """Record one ingested document in manifest.json (provenance ledger).
+
+    Returns True when a new record was added, False when the doc_id (or an
+    identical checksum) was already recorded — so re-running ingest of the
+    same file never duplicates provenance. Creates the manifest if missing.
+    """
+    manifest = None
+    if os.path.exists(manifest_path):
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+    if manifest is None:
+        manifest = {"documents_indexed": 0, "total_chunks": 0, "documents": [],
+                    "duplicates_skipped": [], "failures": []}
+    for d in manifest.get("documents", []):
+        if d.get("doc_id") == doc_id or d.get("checksum") == checksum:
+            return False
+    manifest.setdefault("documents", []).append({
+        "file": filename, "doc_id": doc_id, "title": title, "edition": edition,
+        "publication_year": year, "source": source, "checksum": checksum,
+        "pages": pages, "chars": chars, "chunks": chunks, "status": "ok",
+    })
+    manifest["documents_indexed"] = len(manifest["documents"])
+    manifest["total_chunks"] = sum(d.get("chunks", 0) for d in manifest["documents"])
+    os.makedirs(os.path.dirname(manifest_path) or ".", exist_ok=True)
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+    return True
 
 
 def main() -> None:
@@ -37,6 +79,16 @@ def main() -> None:
     store.add_document(result.document.to_dict(), [c.to_dict() for c in result.chunks])
     store.save()
     print(f"ingested {args.doc_id}: {len(result.chunks)} chunks (total={store.count()})")
+    recorded = update_manifest(
+        os.path.join("data", "guidelines", "manifest.json"),
+        filename=os.path.basename(args.pdf), doc_id=args.doc_id, title=args.title,
+        edition=args.edition, year=args.year, source=args.source,
+        checksum=result.document.checksum,
+        pages=len({c.page for c in result.chunks}),
+        chars=sum(len(c.text) for c in result.chunks),
+        chunks=len(result.chunks))
+    print(f"manifest: {'recorded' if recorded else 'already present, skipped'}")
+    print("next: POST /api/reload (or restart) so the server picks up the new document")
 
 
 if __name__ == "__main__":

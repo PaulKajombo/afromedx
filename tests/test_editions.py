@@ -14,7 +14,7 @@ from app.ingestion.pdf_loader import PageText
 from app.ingestion.pipeline import ingest_pages
 from app.llm.openai_provider import _clean_answer
 from app.retrieval.embedder import TfidfEmbedder
-from app.retrieval.search import doc_year, recency_bonus, search
+from app.retrieval.search import doc_year, parse_doc_boost, recency_bonus, search
 from app.retrieval.store import VectorStore
 
 
@@ -73,12 +73,82 @@ def test_recency_bonus_units():
     assert doc_year("missing", docs) is None
 
 
-def test_numbered_items_survive_sanitizer():
-    # Numbered items with DISTINCT content survive; a bullet that merely
+def test_numbered_items_survive_sanitizer():    # Numbered items with DISTINCT content survive; a bullet that merely
     # echoes a body line (minus its citation tag) is dropped as duplication.
     body = "1. Give **artesunate** 2.4 mg/kg [E1].\n2. Follow with oral ACT [E1]."
     bullets = ["1. Give **artesunate** 2.4 mg/kg [E1]", "**Answer:**",
                "2. Switch to oral ACT once the patient can swallow [E1]"]
     clean_body, clean_points = _clean_answer(body, bullets)
-    assert clean_body == body
-    assert clean_points == ["2. Switch to oral ACT once the patient can swallow [E1]"]
+    assert clean_body == ("1. Give **artesunate** 2.4 mg/kg.\n"
+                          "2. Follow with oral ACT.")
+    assert clean_points == ["2. Switch to oral ACT once the patient can swallow"]
+
+
+def test_parse_doc_boost():
+    assert parse_doc_boost("") == {}
+    assert parse_doc_boost("emergency-assessment:0.08") == {"emergency-assessment": 0.08}
+    assert parse_doc_boost("a:0.1, b:bad, c:0.2") == {"a": 0.1, "c": 0.2}
+    assert parse_doc_boost("none") == {}
+
+
+def test_authority_boost_decides_ties(tmp_path):
+    body = "Emergency triage.\nAssess airway breathing circulation for emergency triage."
+    store = _seed_store(tmp_path, [
+        ("doc-a", "Old Protocol", 5, body),
+        ("doc-b", "New Protocol", 5, body),
+    ])
+    hits = search(store, "emergency triage assessment", top_k=2, min_score=0.01,
+                  max_per_doc=0, collapse_dupes=False, recency_weight=0.0,
+                  doc_boost={"doc-b": 0.08})
+    assert [h["chunk"]["document_id"] for h in hits] == ["doc-b", "doc-a"]
+
+
+def test_empty_authority_map_disables(tmp_path):
+    body = "Emergency triage.\nAssess airway breathing circulation for emergency triage."
+    store = _seed_store(tmp_path, [
+        ("doc-a", "Old Protocol", 5, body),
+        ("doc-b", "New Protocol", 5, body),
+    ])
+    hits = search(store, "emergency triage assessment", top_k=2, min_score=0.01,
+                  max_per_doc=0, collapse_dupes=False, recency_weight=0.0,
+                  doc_boost={})
+    # identical scores: stable index order, no boost applied
+    assert [h["chunk"]["document_id"] for h in hits] == ["doc-a", "doc-b"]
+
+
+def test_supersession_prefers_successor(tmp_path, monkeypatch):
+    import app.retrieval.search as search_mod
+    monkeypatch.setattr(search_mod, "SUPERSEDES", {"old-doc": "new-doc"})
+    body = "Severe malaria treatment.\nGive IV artesunate 2.4 mg/kg for severe malaria."
+    store = _seed_store(tmp_path, [
+        ("old-doc", "Old Edition", 10, body),
+        ("new-doc", "New Edition", 10, body),
+    ])
+    hits = search(store, "severe malaria artesunate dose", top_k=2, min_score=0.01,
+                  max_per_doc=0, collapse_dupes=False, recency_weight=0.0,
+                  doc_boost={}, superseded_penalty=0.03)
+    assert [h["chunk"]["document_id"] for h in hits] == ["new-doc", "old-doc"]
+
+
+def test_superseded_alone_is_not_penalized(tmp_path, monkeypatch):
+    import app.retrieval.search as search_mod
+    monkeypatch.setattr(search_mod, "SUPERSEDES", {"old-doc": "new-doc"})
+    body = "Severe malaria treatment.\nGive IV artesunate 2.4 mg/kg for severe malaria."
+    store = _seed_store(tmp_path, [("old-doc", "Old Edition", 10, body)])
+    hits = search(store, "severe malaria artesunate dose", top_k=2, min_score=0.01,
+                  doc_boost={}, superseded_penalty=0.03)
+    assert hits and hits[0]["chunk"]["document_id"] == "old-doc"
+
+
+def test_supersession_disabled_at_zero(tmp_path, monkeypatch):
+    import app.retrieval.search as search_mod
+    monkeypatch.setattr(search_mod, "SUPERSEDES", {"old-doc": "new-doc"})
+    body = "Severe malaria treatment.\nGive IV artesunate 2.4 mg/kg for severe malaria."
+    store = _seed_store(tmp_path, [
+        ("old-doc", "Old Edition", 10, body),
+        ("new-doc", "New Edition", 10, body),
+    ])
+    hits = search(store, "severe malaria artesunate dose", top_k=2, min_score=0.01,
+                  max_per_doc=0, collapse_dupes=False, recency_weight=0.0,
+                  doc_boost={}, superseded_penalty=0)
+    assert [h["chunk"]["document_id"] for h in hits] == ["old-doc", "new-doc"]

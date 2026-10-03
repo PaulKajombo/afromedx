@@ -62,6 +62,13 @@ class Settings:
         d.strip() for d in _get("AFROMEDX_EXCLUDE_DOCS",
                                 "paediatrics-handbook,obgyn").split(",") if d.strip())
     recency_weight: float = float(_get("AFROMEDX_RECENCY_WEIGHT", "0.02") or 0.02)
+    # Authority policy: per-document score bonuses as "doc:weight,...".
+    # Empty (default) uses the DOC_BOOST map in search.py; any value replaces
+    # it entirely (use e.g. "none" with no colon to disable all boosts).
+    doc_boost_raw: str = _get("AFROMEDX_DOC_BOOST", "")
+    # Superseded-edition penalty, applied only when the successor competes.
+    # 0 disables (ablation).
+    superseded_penalty: float = float(_get("AFROMEDX_SUPERSEDED_PENALTY", "0.03") or 0.03)
     # Answer cache (perf): seconds a repeat answer is served without
     # re-running retrieval + LLM. 0 disables. Cleared on /api/reload.
     cache_ttl: float = float(_get("AFROMEDX_CACHE_TTL", "600") or 600)

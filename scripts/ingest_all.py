@@ -51,6 +51,9 @@ DOC_META: dict[str, tuple[str, str, str, int | None, str]] = {
         ("coin-2022", "COIN Malawi", "", 2022, DEFAULT_SOURCE),
     "COIN_Training_Manual_2017.pdf":
         ("coin-training-2017", "COIN Training Manual", "", 2017, DEFAULT_SOURCE),
+    "Emergency_Assessment_V2.pdf":
+        ("emergency-assessment", "Emergency Assessment and Immediate Treatment",
+         "V2", None, DEFAULT_SOURCE),
     "Guidelines_for_the_Prevention_and_Management_of_Hepatitis_B_and_C_in_Malawi_.pdf":
         ("hepatitis-bc-prevention",
          "Guidelines for the Prevention and Management of Hepatitis B and C in Malawi",

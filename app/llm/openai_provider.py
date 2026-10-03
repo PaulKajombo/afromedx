@@ -40,6 +40,11 @@ _STRUCTURAL_RE = re.compile(
     r"^\*{0,2}\s*(answer|key[\s\-]*points?|recommended action|heading|"
     r"guideline(\s+sources?)?)\s*:?\*{0,2}\s*$", re.IGNORECASE)
 _GUIDELINE_TRAILER_RE = re.compile(r"^\*{0,2}\s*guideline", re.IGNORECASE)
+# Internal retrieval markers ([E1], [E2], ...) must never reach the UI: the
+# structured citations array already carries the provenance. Stripped here,
+# centrally, for body and bullets alike.
+_EVIDENCE_ID_RE = re.compile(r"\s*\[E\d+\]")
+_LIST_ITEM_RE = re.compile(r"^\s*\d+[.)]\s+")
 
 
 def _near_dup(bullet: str, body_lines: list[str], threshold: float = 0.85) -> bool:
@@ -60,19 +65,35 @@ def _near_dup(bullet: str, body_lines: list[str], threshold: float = 0.85) -> bo
     return False
 
 
+def _strip_evidence_ids(text: str) -> str:
+    """Remove internal [E#] markers and collapse leftover whitespace."""
+    return " ".join(_EVIDENCE_ID_RE.sub("", text or "").split())
+
+
 def _clean_answer(body: str, bullets: list[str]) -> tuple[str, list[str]]:
     """Remove UI-duplicating structure from model output.
 
     Drops label-only lines (Answer:/Key Points:/Guideline:) and trailing
-    Guideline source lines from the body, and drops structural/header bullets
-    from key_points. Pure clinical content passes through untouched.
+    Guideline source lines from the body, strips internal [E#] markers
+    everywhere, and renumbers list items sequentially ("1./1./1." from the
+    model becomes 1/2/3) so split lists cannot restart numbering. Pure
+    clinical content passes through untouched.
     """
-    kept = [ln for ln in (body or "").splitlines()
-            if ln.strip() and not _STRUCTURAL_RE.match(ln.strip())
-            and not _GUIDELINE_TRAILER_RE.match(ln.strip())]
+    kept: list[str] = []
+    n = 0
+    for ln in (body or "").splitlines():
+        s = _strip_evidence_ids(ln.strip())
+        if not s or _STRUCTURAL_RE.match(s) or _GUIDELINE_TRAILER_RE.match(s):
+            continue
+        m = _LIST_ITEM_RE.match(s)
+        if m:
+            n += 1
+            s = s[:m.start()] + f"{n}. " + s[m.end():]
+            s = s.strip()
+        kept.append(s)
     clean_bullets = []
     for b in bullets or []:
-        s = b.strip().lstrip("-•* ").strip()
+        s = _strip_evidence_ids(b.strip().lstrip("-•* "))
         if not s or _STRUCTURAL_RE.match(s) or _GUIDELINE_TRAILER_RE.match(s):
             continue
         if _near_dup(s, kept):
