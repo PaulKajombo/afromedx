@@ -23,7 +23,7 @@ RUN uv run --no-sync --frozen python -c \
 # Application + derived index + source PDFs (see .dockerignore for exclusions).
 COPY app/ ./app/
 COPY data/index/ ./data/index/
-COPY "Malawi Guidelines/" "./Malawi Guidelines/"
+COPY ["Malawi Guidelines/", "./Malawi Guidelines/"]
 COPY frontend/ ./frontend/
 COPY scripts/ ./scripts/
 COPY eval/ ./eval/
