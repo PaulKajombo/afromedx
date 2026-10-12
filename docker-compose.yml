@@ -8,6 +8,10 @@ services:
       - .env
     expose:
       - "8000"
+    ports:
+      # Localhost-only direct access (debugging/health without Caddy).
+      # External traffic must go through Caddy on 80/443.
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health',timeout=10).status==200 else 1)"]
