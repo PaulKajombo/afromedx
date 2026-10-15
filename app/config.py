@@ -69,6 +69,8 @@ class Settings:
     # Superseded-edition penalty, applied only when the successor competes.
     # 0 disables (ablation).
     superseded_penalty: float = float(_get("AFROMEDX_SUPERSEDED_PENALTY", "0.03") or 0.03)
+    # Generic-fallback deprioritization (0 disables for ablation).
+    fallback_penalty: float = float(_get("AFROMEDX_FALLBACK_PENALTY", "0.03") or 0.03)
     # Answer cache (perf): seconds a repeat answer is served without
     # re-running retrieval + LLM. 0 disables. Cleared on /api/reload.
     cache_ttl: float = float(_get("AFROMEDX_CACHE_TTL", "600") or 600)

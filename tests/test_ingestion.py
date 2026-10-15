@@ -50,3 +50,44 @@ def test_private_use_and_toc_removed():
     res = ingest_pages(pages, doc_id="d3", title="T")
     assert res.chunks
     assert all("......" not in c.text for c in res.chunks)
+
+
+def test_letter_spaced_runs_rejoined():
+    from app.ingestion.cleaner import clean_text
+    # Runs of spaced capitals collapse ("C P D" -> "CPD"); uneven fragments
+    # may join partially ("La B O U R ..." -> "La BOURANDD") - still strictly
+    # more matchable than isolated single letters, never less.
+    out = clean_text("La B O U R A N D D Eliv Er Y\nC P D\nGive IV fluids.")
+    assert "CPD" in out
+    assert "BOURANDD" in out
+    assert "Give IV fluids." in out
+
+
+def test_split_words_rejoined():
+    from app.ingestion.cleaner import clean_text
+    out = clean_text("M alaw iN ationalR eproductive H ealth S ervice protocols here now")
+    assert "Health" in out
+    assert "Service" in out
+
+
+def test_normal_text_untouched_by_despacing():
+    from app.ingestion.cleaner import clean_text
+    # Indefinite article, vitamin letters, and ordinary sentences must survive.
+    assert clean_text("Take a test dose of Vitamin A deficiency daily.") == \
+        "Take a test dose of Vitamin A deficiency daily."
+    assert clean_text("Give IV artesunate 2.4 mg/kg at 0, 12 and 24 hours.") == \
+        "Give IV artesunate 2.4 mg/kg at 0, 12 and 24 hours."
+    # Two scattered capitals are below the flag bar: left alone.
+    assert clean_text("Grade A B tumours present.") == "Grade A B tumours present."
+    # Common words and clinical abbreviations never join, even when flagged.
+    out = clean_text("A B C D package of care to day ward review now")
+    assert "ofcare" not in out and "today" not in out.replace("Today", "")
+
+
+def test_fragment_joins():
+    from app.ingestion.cleaner import clean_text
+    out = clean_text("D rugs for em ergency care now X Y Zz")
+    assert "Drugs" in out
+    assert "emergency" in out
+    out2 = clean_text("Episiotom y and suturing pack X Y Zz")
+    assert "Episiotomy" in out2

@@ -44,13 +44,18 @@ def update_manifest(manifest_path: str, *, filename: str, doc_id: str,
         manifest = {"documents_indexed": 0, "total_chunks": 0, "documents": [],
                     "duplicates_skipped": [], "failures": []}
     for d in manifest.get("documents", []):
-        if d.get("doc_id") == doc_id or d.get("checksum") == checksum:
-            return False
-    manifest.setdefault("documents", []).append({
+        if d.get("checksum") == checksum and d.get("doc_id") != doc_id:
+            return False  # identical file already recorded under another id
+    record = {
         "file": filename, "doc_id": doc_id, "title": title, "edition": edition,
         "publication_year": year, "source": source, "checksum": checksum,
         "pages": pages, "chars": chars, "chunks": chunks, "status": "ok",
-    })
+    }
+    existing = next((d for d in manifest.get("documents", []) if d.get("doc_id") == doc_id), None)
+    if existing is not None:
+        existing.update(record)  # re-ingest: refresh counts, keep position
+    else:
+        manifest.setdefault("documents", []).append(record)
     manifest["documents_indexed"] = len(manifest["documents"])
     manifest["total_chunks"] = sum(d.get("chunks", 0) for d in manifest["documents"])
     os.makedirs(os.path.dirname(manifest_path) or ".", exist_ok=True)

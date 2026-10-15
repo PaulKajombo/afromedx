@@ -33,14 +33,24 @@ def test_manifest_created_and_totals(tmp_path):
 def test_manifest_skips_duplicates(tmp_path):
     mp = str(tmp_path / "manifest.json")
     assert _ingest.update_manifest(mp, **_record()) is True
-    # same doc_id again
-    assert _ingest.update_manifest(mp, **_record()) is False
     # same checksum under a different doc_id (re-ingested copy)
     assert _ingest.update_manifest(mp, **_record(doc_id="g2")) is False
     import json
     man = json.load(open(mp, encoding="utf-8"))
     assert man["documents_indexed"] == 1
     assert man["total_chunks"] == 5
+
+
+def test_manifest_refresh_on_reingest(tmp_path):
+    mp = str(tmp_path / "manifest.json")
+    _ingest.update_manifest(mp, **_record())
+    # same doc_id re-ingested (e.g. improved chunking): record refreshed
+    assert _ingest.update_manifest(mp, **_record(chunks=7, pages=12)) is True
+    import json
+    man = json.load(open(mp, encoding="utf-8"))
+    assert man["documents_indexed"] == 1
+    assert man["total_chunks"] == 7
+    assert man["documents"][0]["pages"] == 12
 
 
 def test_manifest_appends_new_documents(tmp_path):

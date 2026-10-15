@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .cleaner import clean_text
+from .cleaner import _despace_line, clean_text
 from .pdf_loader import PageText
 
 TARGET_CHARS = 900
@@ -113,6 +113,11 @@ def split_into_blocks(pages: list[PageText]) -> list[SectionBlock]:
             line = re.sub(r"\s+", " ", raw_line).strip()
             if not line:
                 continue
+            # Repair letter-spaced lines while raw line structure still exists:
+            # clean_text() later only sees joined blocks, where the per-line
+            # flag can no longer fire. Heading detection below sees the
+            # repaired text (neutral-to-better for section matching).
+            line = _despace_line(line)
             if _TOC_LINE_RE.search(line):
                 continue  # drop table-of-contents rows entirely
             if page_idx < _FRONT_MATTER_PAGES and _looks_like_heading(line):

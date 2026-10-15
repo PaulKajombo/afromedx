@@ -86,6 +86,8 @@ CLINICAL_SYNONYMS: dict[str, list[str]] = {
     "hemorrhage": ["haemorrhage"],
     "paracetamol": ["panadol"],
     "panadol": ["paracetamol"],
+    "chronic": ["persistent"],
+    "persistent": ["chronic"],
 }
 
 
@@ -367,6 +369,13 @@ SUPERSEDES: dict[str, str] = {
     "malaria-2020": "malaria-treatment",
 }
 SUPERSEDED_PENALTY = 0.03
+
+# Generic-fallback content: chunks that defer to other guidelines instead of
+# stating Malawi's own recommendation (exactly one such chunk corpus-wide:
+# who-pocketbook p141 Tuberculosis). Deprioritized so national content leads
+# but never removed — it remains legitimate background evidence.
+FALLBACK_PHRASES = ("if national recommendations are not available",)
+FALLBACK_PENALTY = 0.03
 # Includes question-meta nouns ("results", "meaning"): they describe the
 # wanted answer, never the medicine, so they must not decide answerability.
 GENERIC_TERMS = frozenset(
@@ -441,6 +450,7 @@ def search(
     recency_weight: float | None = None,
     doc_boost: dict[str, float] | None = None,
     superseded_penalty: float | None = None,
+    fallback_penalty: float | None = None,
 ) -> list[dict]:
     """Return ranked passages: [{chunk, semantic, keyword, score}]. Empty if below gate."""
     q = (query or "").strip()
@@ -526,6 +536,14 @@ def search(
             fused = fused - np.array(
                 [sp if c.get("document_id") in penalized else 0.0
                  for c in store.chunks], dtype=np.float32)
+    # Generic-fallback content defers to other guidelines; deprioritize it so
+    # national content leads. Query-time only; the chunks stay citable.
+    fp = settings.fallback_penalty if fallback_penalty is None else fallback_penalty
+    if fp and fp > 0:
+        lowered = tuple(p.lower() for p in FALLBACK_PHRASES)
+        fused = fused - np.array(
+            [fp if any(p in (c.get("text", "") or "").lower() for p in lowered) else 0.0
+             for c in store.chunks], dtype=np.float32)
 
     order = np.argsort(-fused)
     # P1C: per-document diversity cap — repeated chunks from one document must

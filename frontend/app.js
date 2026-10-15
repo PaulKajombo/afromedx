@@ -471,6 +471,45 @@ document.querySelectorAll("#libtabs button").forEach(b =>
 
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
+// ---- install affordance: quiet floating button, details only on demand ----
+(function installFab() {
+  const fab = document.getElementById("installFab");
+  const tip = document.getElementById("installTip");
+  let dismissed = false;
+  try { dismissed = localStorage.getItem("afromedx.install-hide") === "1"; } catch (e) {}
+  if (dismissed || window.matchMedia("(display-mode: standalone)").matches) return;
+  const hideAll = () => {
+    fab.classList.add("hidden"); tip.classList.add("hidden");
+    try { localStorage.setItem("afromedx.install-hide", "1"); } catch (e) {}
+  };
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent || "");
+  let deferred = null;
+  fab.classList.remove("hidden");
+  fab.addEventListener("click", async () => {
+    if (deferred) {
+      deferred.prompt();
+      try { await deferred.userChoice; } catch (e) {}
+      deferred = null;
+      hideAll();
+      return;
+    }
+    if (isIOS) {
+      tip.innerHTML = `Install AfroMedX: tap <strong>Share</strong>, then `
+        + `“<strong>Add to Home Screen</strong>”. `
+        + `<button class="linkbtn" id="tipHide">Dismiss</button>`;
+    } else {
+      tip.innerHTML = `Install from your browser menu (Chrome/Edge → Install app). `
+        + `<button class="linkbtn" id="tipHide">Dismiss</button>`;
+    }
+    tip.classList.remove("hidden");
+    document.getElementById("tipHide").addEventListener("click", hideAll);
+  });
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    deferred = e;
+  });
+})();
+
 // ---- PWA: register shell service worker (scope "/" needs /sw.js route) ----
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

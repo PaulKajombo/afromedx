@@ -2,7 +2,7 @@
   "generated_at": "2026-09-21T14:05:19.027979+00:00",
   "pdf_dir": "C:\\Users\\PaulT\\Afromedx V1\\Malawi Guidelines",
   "embedder": "sbert:all-MiniLM-L6-v2",
-  "total_chunks": 13076,
+  "total_chunks": 13084,
   "documents_indexed": 30,
   "documents": [
     {
@@ -196,8 +196,8 @@
       "source": "Malawi Ministry of Health",
       "checksum": "0cd9f29d0d720b18574dc09321872997deff5148a7fa3dbd1e52a39381fb33b6",
       "pages": 388,
-      "chars": 565567,
-      "chunks": 765,
+      "chars": 556642,
+      "chunks": 773,
       "status": "ok"
     },
     {

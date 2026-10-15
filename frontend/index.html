@@ -4,14 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AfroMedX Clinical Search</title>
-<link rel="stylesheet" href="/static/styles.css?v=2" />
+<link rel="stylesheet" href="/static/styles.css?v=3" />
 <link rel="manifest" href="/static/manifest.webmanifest" />
 <meta name="theme-color" content="#ED1C24" />
 <link rel="icon" type="image/svg+xml" href="/static/icon.svg" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="apple-touch-icon" href="/static/icon.svg" />
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
 </head>
 <body>
 <div id="splash" class="splash hidden">
@@ -164,6 +164,10 @@
   <div id="thumbs" class="thumbstrip"></div>
   <iframe id="vFrame" title="Guideline PDF"></iframe>
 </div>
-<script src="/static/app.js?v=2"></script>
+<button id="installFab" class="fab hidden" aria-label="Install AfroMedX app">
+  <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></svg>
+</button>
+<div id="installTip" class="install-tip hidden"></div>
+<script src="/static/app.js?v=3"></script>
 </body>
 </html>

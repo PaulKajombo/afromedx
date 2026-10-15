@@ -6,6 +6,9 @@ const SHELL = [
   "/static/app.js",
   "/static/manifest.webmanifest",
   "/static/icon.svg",
+  "/static/icons/icon-192.png",
+  "/static/icons/icon-512.png",
+  "/static/icons/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (e) => {
