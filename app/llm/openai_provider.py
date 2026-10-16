@@ -40,10 +40,10 @@ _STRUCTURAL_RE = re.compile(
     r"^\*{0,2}\s*(answer|key[\s\-]*points?|recommended action|heading|"
     r"guideline(\s+sources?)?)\s*:?\*{0,2}\s*$", re.IGNORECASE)
 _GUIDELINE_TRAILER_RE = re.compile(r"^\*{0,2}\s*guideline", re.IGNORECASE)
-# Internal retrieval markers ([E1], [E2], ...) must never reach the UI: the
-# structured citations array already carries the provenance. Stripped here,
-# centrally, for body and bullets alike.
-_EVIDENCE_ID_RE = re.compile(r"\s*\[E\d+\]")
+# Internal retrieval markers ([E1], [E2], also spaced "[ E2 ]" variants) must
+# never reach the UI: the structured citations array already carries the
+# provenance. Stripped here, centrally, for body and bullets alike.
+_EVIDENCE_ID_RE = re.compile(r"\s*\[\s*E\d+\s*\]")
 _LIST_ITEM_RE = re.compile(r"^\s*\d+[.)]\s+")
 
 
@@ -140,8 +140,14 @@ class OpenAICompatibleProvider(LLMProvider):
             "(for example 'HIV', 'TB', or 'migraine headache'), interpret it as a request for the "
             "standard management overview — what the guidelines cover on diagnosis and first-line "
             "treatment — and answer from the evidence; abstain for such queries only if the passages "
-            "contain nothing relevant to the condition at all. End such answers by suggesting "
+            "contain nothing relevant to the condition at all. A bare clinical topic states no "
+            "premise, so premise-rejection never applies to it: with retrieved passages it must "
+            "always receive an overview answer, never abstention. End such answers by suggesting "
             "a more specific follow-up question. "
+            "Match the asked aspect: a 'what is' question wants a definition first (1-2 sentences "
+            "with diagnostic criteria or key features), not the full treatment protocol; a management "
+            "question wants the protocol. Never answer a different aspect than asked — at most add "
+            "a one-line pointer to the other aspect. "
             "If the question itself is not about clinical patient care (for example vehicle repair "
             "or sports scores), abstain even if some retrieved words overlap — topical word overlap "
             "is not clinical evidence. "

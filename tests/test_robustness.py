@@ -16,7 +16,8 @@ from app.ingestion.pdf_loader import PageText
 from app.ingestion.pipeline import ingest_pages
 from app.llm.stub import StubProvider, answer_title
 from app.retrieval.embedder import TfidfEmbedder
-from app.retrieval.search import search, term_covered, tokenize
+from app.retrieval.search import (classify_intent, expand_definition, search,
+                                   term_covered, tokenize)
 from app.retrieval.store import VectorStore
 
 
@@ -114,3 +115,33 @@ def test_answer_title_edges():
     long_q = "x" * 200
     assert len(answer_title(long_q)) <= 120
     assert answer_title(long_q).endswith("...")
+
+
+def test_classify_intent():
+    assert classify_intent("what is postpartum haemorrhage") == "definition"
+    assert classify_intent("What are the symptoms of malaria") == "definition"
+    assert classify_intent("define eclampsia") == "definition"
+    assert classify_intent("postpartum haemorrhage") == "management"
+    assert classify_intent("drugs you cannot give in asthma") == "management"
+    # action/urgency wording always wins as default behavior
+    assert classify_intent("What are the danger signs in a child with malaria?") == "other"
+    assert classify_intent("What is the dose of IV artesunate?") == "other"
+    assert classify_intent("How is eclampsia treated?") == "other"
+
+
+def test_expand_definition():
+    out = expand_definition("what is postpartum haemorrhage")
+    assert out.startswith("what is postpartum haemorrhage")
+    assert "definition" in out and "defined" in out
+    assert expand_definition("How is eclampsia treated?") == "How is eclampsia treated?"
+
+
+def test_definition_query_ranks_definition_content(tmp_path):
+    store = VectorStore(str(tmp_path), embedder=TfidfEmbedder())
+    pages = [PageText(page=10, text="Postpartum haemorrhage treatment.\nGive oxytocin 10 IU IM for postpartum haemorrhage."),
+             PageText(page=11, text="Postpartum haemorrhage definition.\nPostpartum haemorrhage is defined as blood loss.")]
+    res = ingest_pages(pages, doc_id="pph", title="PPH Guideline")
+    store.add_document(res.document.to_dict(), [c.to_dict() for c in res.chunks])
+    hits = search(store, "what is postpartum haemorrhage", top_k=2, min_score=0.01)
+    assert hits, "definition question must retrieve"
+    assert "defined as" in hits[0]["chunk"]["text"]

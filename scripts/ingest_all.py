@@ -54,6 +54,9 @@ DOC_META: dict[str, tuple[str, str, str, int | None, str]] = {
     "Emergency_Assessment_V2.pdf":
         ("emergency-assessment", "Emergency Assessment and Immediate Treatment",
          "V2", None, DEFAULT_SOURCE),
+    "TB-and-Leprosy-Guidelines_Final_JUNE2024.pdf":
+        ("tb-leprosy-2024", "National Tuberculosis and Leprosy Guidelines",
+         "Ninth Edition", 2024, DEFAULT_SOURCE),
     "Guidelines_for_the_Prevention_and_Management_of_Hepatitis_B_and_C_in_Malawi_.pdf":
         ("hepatitis-bc-prevention",
          "Guidelines for the Prevention and Management of Hepatitis B and C in Malawi",

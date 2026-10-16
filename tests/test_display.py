@@ -67,7 +67,7 @@ def test_numbering_renumbered_sequentially():
 def test_evidence_ids_stripped():
     from app.llm.openai_provider import _clean_answer as clean
     body = "Give **artesunate** 2.4 mg/kg [E1] and monitor [E2][E3]."
-    bullets = ["Artesunate dosing [E1]", "Monitor glucose [E9]"]
+    bullets = ["Artesunate dosing [E1]", "Monitor glucose [ E9 ]"]
     clean_body, clean_points = _clean_answer(body, bullets)
     assert "[E" not in clean_body
     assert all("[E" not in p for p in clean_points)

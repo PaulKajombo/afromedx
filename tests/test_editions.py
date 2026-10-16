@@ -8,6 +8,8 @@
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.ingestion.pdf_loader import PageText
@@ -152,3 +154,69 @@ def test_supersession_disabled_at_zero(tmp_path, monkeypatch):
                   max_per_doc=0, collapse_dupes=False, recency_weight=0.0,
                   doc_boost={}, superseded_penalty=0)
     assert [h["chunk"]["document_id"] for h in hits] == ["old-doc", "new-doc"]
+
+
+def test_default_exclusion_set_covers_superseded_and_transcription(monkeypatch):
+    monkeypatch.delenv("AFROMEDX_EXCLUDE_DOCS", raising=False)
+    import importlib
+    import app.config as config_mod
+    importlib.reload(config_mod)
+    try:
+        assert config_mod.settings.excluded_docs == frozenset({
+            "paediatrics-handbook", "obgyn", "emergency-assessment-words-only"})
+    finally:
+        importlib.reload(config_mod)
+
+
+def _seed_ds_dr(tmp_path):
+    store = _seed_store(tmp_path, [
+        ("doc-dr", "DR Guideline", 5,
+         "Tuberculosis treatment regimen guidelines. "
+         "Drug resistant tuberculosis treatment. Regimen for tuberculosis."),
+        ("doc-ds", "DS Guideline", 5,
+         "Drug susceptible tuberculosis isoniazid."),
+    ])
+    return store
+
+
+def _scores_by_doc(hits):
+    return {h["chunk"]["document_id"]: h["score"] for h in hits}
+
+
+def test_ds_query_demotes_dr_chunks(tmp_path):
+    store = _seed_ds_dr(tmp_path)
+    q = "drug susceptible tuberculosis treatment regimen"
+    kw = dict(top_k=2, min_score=0.01, max_per_doc=0, collapse_dupes=False,
+              recency_weight=0.0, doc_boost={}, superseded_penalty=0,
+              fallback_penalty=0)
+    base = _scores_by_doc(search(store, q, ds_penalty=0, **kw))
+    fixed = _scores_by_doc(search(store, q, ds_penalty=0.04, **kw))
+    assert set(base) == set(fixed) == {"doc-dr", "doc-ds"}
+    # DR chunk drops by exactly the penalty; DS chunk untouched.
+    assert fixed["doc-dr"] == pytest.approx(base["doc-dr"] - 0.04, abs=1e-6)
+    assert fixed["doc-ds"] == pytest.approx(base["doc-ds"], abs=1e-9)
+
+
+def test_dr_query_exempt_from_ds_penalty(tmp_path):
+    store = _seed_ds_dr(tmp_path)
+    hits = search(store, "MDR tuberculosis treatment regimen", top_k=2, min_score=0.01,
+                  max_per_doc=0, collapse_dupes=False, recency_weight=0.0,
+                  doc_boost={}, superseded_penalty=0, fallback_penalty=0,
+                  ds_penalty=0.04)
+    assert hits, "MDR query must still retrieve"
+    assert hits[0]["chunk"]["document_id"] == "doc-dr"
+
+
+def test_non_tb_query_unaffected_by_ds_penalty(tmp_path):
+    store = _seed_store(tmp_path, [
+        ("doc-a", "Guide A", 5, "Severe malaria treatment. Give IV artesunate."),
+        ("doc-b", "Guide B", 5, "Drug resistant tuberculosis treatment guidelines."),
+    ])
+    q = "severe malaria artesunate treatment"
+    plain = search(store, q, top_k=2, min_score=0.01, max_per_doc=0,
+                   collapse_dupes=False, recency_weight=0.0, doc_boost={},
+                   superseded_penalty=0, fallback_penalty=0, ds_penalty=0)
+    penalized = search(store, q, top_k=2, min_score=0.01, max_per_doc=0,
+                       collapse_dupes=False, recency_weight=0.0, doc_boost={},
+                       superseded_penalty=0, fallback_penalty=0, ds_penalty=0.04)
+    assert [h["chunk"]["id"] for h in plain] == [h["chunk"]["id"] for h in penalized]

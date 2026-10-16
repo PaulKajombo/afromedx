@@ -60,7 +60,8 @@ class Settings:
     # [0, weight] bonus favouring newer editions (0 disables for ablation).
     excluded_docs: frozenset = frozenset(
         d.strip() for d in _get("AFROMEDX_EXCLUDE_DOCS",
-                                "paediatrics-handbook,obgyn").split(",") if d.strip())
+                                "paediatrics-handbook,obgyn,"
+                                "emergency-assessment-words-only").split(",") if d.strip())
     recency_weight: float = float(_get("AFROMEDX_RECENCY_WEIGHT", "0.02") or 0.02)
     # Authority policy: per-document score bonuses as "doc:weight,...".
     # Empty (default) uses the DOC_BOOST map in search.py; any value replaces
@@ -71,6 +72,8 @@ class Settings:
     superseded_penalty: float = float(_get("AFROMEDX_SUPERSEDED_PENALTY", "0.03") or 0.03)
     # Generic-fallback deprioritization (0 disables for ablation).
     fallback_penalty: float = float(_get("AFROMEDX_FALLBACK_PENALTY", "0.03") or 0.03)
+    # DS-query demotion of DR-asserting chunks (0 disables for ablation).
+    ds_penalty: float = float(_get("AFROMEDX_DS_PENALTY", "0.04") or 0.04)
     # Answer cache (perf): seconds a repeat answer is served without
     # re-running retrieval + LLM. 0 disables. Cleared on /api/reload.
     cache_ttl: float = float(_get("AFROMEDX_CACHE_TTL", "600") or 600)

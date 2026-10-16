@@ -126,6 +126,43 @@ def _edit_distance(a: str, b: str) -> int:
     return prev[-1]
 
 
+def classify_intent(query: str) -> str:
+    """Query intent: 'definition', 'management', or 'other'.
+
+    "what is postpartum haemorrhage" asks for a DEFINITION (what it is,
+    criteria, key features); bare "postpartum haemorrhage" asks for MANAGEMENT
+    (what to do). Action/urgency wording ("treat", "danger", "referral",
+    "dose", ...) always wins as 'other' = default behavior, so red-flag and
+    treatment questions can never misroute into definitions.
+    """
+    q = (query or "").lower()
+    toks = set(tokenize(query))
+    action = {"treat", "treated", "treating", "treatment", "manage", "managing",
+              "management", "dose", "dosage", "refer", "referral", "emergency",
+              "urgent", "danger"}
+    if toks & action:
+        return "other"
+    if re.search(r"\bwhat\s+(is|are)\b", q) or re.search(r"\bdefin\w*\b", q) \
+            or "meaning of" in q or "causes of" in q or "symptoms of" in q \
+            or "signs of" in q:
+        return "definition"
+    if _is_bare_topic(query):
+        return "management"
+    return "other"
+
+
+def expand_definition(query: str) -> str:
+    """Append definitional framing for definition-intent queries (retrieval only).
+
+    The ORIGINAL question is always kept for answer generation, titles, and
+    evaluation — only ranking sees the extra terms, mirroring bare-topic and
+    acronym expansion.
+    """
+    if classify_intent(query) == "definition":
+        return query.strip() + " definition defined"
+    return query
+
+
 def _is_bare_topic(query: str) -> bool:
     """True for statement/bare-phrase queries with no question or action framing.
 
@@ -271,9 +308,11 @@ def keyword_scores(query: str, texts: list[str] | None = None, *,
 #   paediatric-protocols-2018, COIN 2022 and the IMNCI materials -> EXCLUDED.
 # - obgyn ("OBGYN Guidelines.pdf") states: Version 3.0, 15 December 2017.
 #   Superseded by obs-gynae-2023 (Malawi Ob/Gyn Protocols 2023) -> EXCLUDED.
+# - emergency-assessment-words-only: a transcription aid that warns its doses
+#   may be ambiguous — not an authoritative guideline -> EXCLUDED (the V2 wall
+#   chart itself stays indexed and live).
 # Exclusion is query-time only (the index is untouched) and reversible via
-# settings.excluded_docs.
-EXCLUDED_DOCS = frozenset({"paediatrics-handbook", "obgyn"})
+# settings.excluded_docs (AFROMEDX_EXCLUDE_DOCS).
 
 # Curated publication years, asserted ONLY where evidenced (filename edition
 # markers, manifest metadata, or the documents' own title pages as extracted
@@ -376,6 +415,19 @@ SUPERSEDED_PENALTY = 0.03
 # but never removed — it remains legitimate background evidence.
 FALLBACK_PHRASES = ("if national recommendations are not available",)
 FALLBACK_PENALTY = 0.03
+
+# Drug-susceptible vs drug-resistant TB are mutually exclusive clinical
+# categories, but share most vocabulary ("drug", "tuberculosis", "regimen"),
+# so DR-table chunks top DS questions on overlap alone. When the query asserts
+# susceptibility and contains NO resistance markers, chunks asserting
+# resistance are demoted (never removed). DR questions (MDR-TB etc.) are
+# exempt by construction.
+_DS_QUERY_TOKENS = frozenset({"susceptible", "sensitive"})
+_DR_QUERY_TOKENS = frozenset({"resistant", "resistance", "mdr", "xdr"})
+_DR_CHUNK_PHRASES = ("drug resist", "mdr", "xdr", "rr-tb", "rr tb", "dr-tb",
+                     "dr tb", "resistant tb", "resistant tuberculosis",
+                     "rifampicin resist")
+DS_PENALTY = 0.04
 # Includes question-meta nouns ("results", "meaning"): they describe the
 # wanted answer, never the medicine, so they must not decide answerability.
 GENERIC_TERMS = frozenset(
@@ -451,6 +503,7 @@ def search(
     doc_boost: dict[str, float] | None = None,
     superseded_penalty: float | None = None,
     fallback_penalty: float | None = None,
+    ds_penalty: float | None = None,
 ) -> list[dict]:
     """Return ranked passages: [{chunk, semantic, keyword, score}]. Empty if below gate."""
     q = (query or "").strip()
@@ -482,7 +535,10 @@ def search(
     # retrieves treatment content instead of definitional fragments.
     # Acronym expansion likewise appends corpus-evidenced phrases
     # ("CAP ... community-acquired pneumonia") for ranking only.
+    # Definition intent appends definitional framing the same way.
     rq = expand_acronyms(expand_bare_topic(q))
+    if classify_intent(q) == "definition":
+        rq = rq.rstrip() + " definition defined"
 
     # semantic cosine
     try:
@@ -544,6 +600,16 @@ def search(
         fused = fused - np.array(
             [fp if any(p in (c.get("text", "") or "").lower() for p in lowered) else 0.0
              for c in store.chunks], dtype=np.float32)
+    # DS-vs-DR disambiguation: a query asserting susceptibility with no
+    # resistance markers demotes resistance-asserting chunks. Query-time only.
+    dp = settings.ds_penalty if ds_penalty is None else ds_penalty
+    if dp and dp > 0:
+        qtokens = set(tokenize(rq))
+        if (qtokens & _DS_QUERY_TOKENS) and not (qtokens & _DR_QUERY_TOKENS):
+            fused = fused - np.array(
+                [dp if any(p in (c.get("text", "") or "").lower()
+                           for p in _DR_CHUNK_PHRASES) else 0.0
+                 for c in store.chunks], dtype=np.float32)
 
     order = np.argsort(-fused)
     # P1C: per-document diversity cap — repeated chunks from one document must

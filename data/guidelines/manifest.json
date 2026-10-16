@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-09-21T14:05:19.027979+00:00",
+  "generated_at": "2026-10-15T22:09:54.259440+00:00",
   "pdf_dir": "C:\\Users\\PaulT\\Afromedx V1\\Malawi Guidelines",
   "embedder": "sbert:all-MiniLM-L6-v2",
-  "total_chunks": 13084,
-  "documents_indexed": 30,
+  "total_chunks": 13640,
+  "documents_indexed": 32,
   "documents": [
     {
       "file": "2_NCD Job Aids-1 (1).pdf",
@@ -97,6 +97,32 @@
       "status": "ok"
     },
     {
+      "file": "Emergency_Assessment_V2.pdf",
+      "doc_id": "emergency-assessment",
+      "title": "Emergency Assessment and Immediate Treatment",
+      "edition": "V2",
+      "publication_year": null,
+      "source": "Malawi Ministry of Health",
+      "checksum": "8deac2f4d182e00e5eb0df82317fbfc3f1ac75c58d7c7a40e728cbfa37cfd87a",
+      "pages": 2,
+      "chars": 5461,
+      "chunks": 4,
+      "status": "ok"
+    },
+    {
+      "file": "Emergency_Assessment_Words_Only.pdf",
+      "doc_id": "emergency-assessment-words-only",
+      "title": "Emergency_Assessment_Words_Only",
+      "edition": "",
+      "publication_year": null,
+      "source": "Malawi Ministry of Health",
+      "checksum": "04e937c24179ebe4b093ff23d1846955c8e43dce6a155802d6affa61bc17bdc9",
+      "pages": 7,
+      "chars": 12913,
+      "chunks": 13,
+      "status": "ok"
+    },
+    {
       "file": "Guidelines_for_the_Prevention_and_Management_of_Hepatitis_B_and_C_in_Malawi_.pdf",
       "doc_id": "hepatitis-bc-prevention",
       "title": "Guidelines for the Prevention and Management of Hepatitis B and C in Malawi",
@@ -126,8 +152,8 @@
       "file": "Malaria Treatment Guidelines.pdf",
       "doc_id": "malaria-treatment",
       "title": "Malawi Malaria Treatment Guidelines",
-      "edition": "",
-      "publication_year": null,
+      "edition": "6th Edition",
+      "publication_year": 2025,
       "source": "Malawi Ministry of Health",
       "checksum": "c9fc6937fe3b31b39d2f7d9b253a0c2bd459b026728802679dd899123bce36c2",
       "pages": 48,
@@ -178,8 +204,8 @@
       "file": "Malawi Standard Treatment Guidelines (MSTG).pdf",
       "doc_id": "mstg",
       "title": "Malawi Standard Treatment Guidelines (MSTG)",
-      "edition": "",
-      "publication_year": null,
+      "edition": "6th Edition",
+      "publication_year": 2023,
       "source": "Malawi Ministry of Health",
       "checksum": "8844c9fecd374c84b089ef585baed8cb78a9f5fdfcd25ff40aa5d0ced7135349",
       "pages": 559,
@@ -196,7 +222,7 @@
       "source": "Malawi Ministry of Health",
       "checksum": "0cd9f29d0d720b18574dc09321872997deff5148a7fa3dbd1e52a39381fb33b6",
       "pages": 388,
-      "chars": 556642,
+      "chars": 565567,
       "chunks": 773,
       "status": "ok"
     },
@@ -210,7 +236,7 @@
       "checksum": "6f61aa78c9c76340bd3737b9a0208c0d55990db39b5e1223f68017abc9762de4",
       "pages": 202,
       "chars": 354370,
-      "chunks": 612,
+      "chunks": 613,
       "status": "ok"
     },
     {
@@ -256,8 +282,8 @@
       "file": "OBGYN Guidelines.pdf",
       "doc_id": "obgyn",
       "title": "Obstetrics and Gynaecology Guidelines",
-      "edition": "",
-      "publication_year": null,
+      "edition": "Version 3.0 (2017, SUPERSEDED by obs-gynae-2023)",
+      "publication_year": 2017,
       "source": "Malawi Ministry of Health",
       "checksum": "6348299f810e591fa072a1a7f088216bf0580a6fcceaa035da25c3ba7accfcbe",
       "pages": 133,
@@ -275,7 +301,7 @@
       "checksum": "762b7f555698bc15493dcf8e416d410b32dcb0d8a3a628bed9d6a7b204e9457a",
       "pages": 67,
       "chars": 81837,
-      "chunks": 116,
+      "chunks": 115,
       "status": "ok"
     },
     {
@@ -305,6 +331,19 @@
       "status": "ok"
     },
     {
+      "file": "TB-and-Leprosy-Guidelines_Final_JUNE2024.pdf",
+      "doc_id": "tb-leprosy-2024",
+      "title": "National Tuberculosis and Leprosy Guidelines",
+      "edition": "Ninth Edition",
+      "publication_year": 2024,
+      "source": "Malawi Ministry of Health",
+      "checksum": "41e2400239d2ae25c9879466ac4f403f382c5d050862dfd99ff4710376c38025",
+      "pages": 207,
+      "chars": 476111,
+      "chunks": 541,
+      "status": "ok"
+    },
+    {
       "file": "Viral_Hepatitis_Guideline_Sept_2023.pdf",
       "doc_id": "viral-hepatitis-2023",
       "title": "Malawi Viral Hepatitis Guideline",
@@ -327,7 +366,7 @@
       "checksum": "e17581cf0829bea6dd4711dda95a727cc298a4ffbd16d37fa2bb89a7b4b0fb65",
       "pages": 438,
       "chars": 743353,
-      "chunks": 1625,
+      "chunks": 1627,
       "status": "ok"
     },
     {
@@ -373,26 +412,13 @@
       "file": "malawian_handbook_paediatrics.pdf",
       "doc_id": "paediatrics-handbook",
       "title": "Malawian Handbook of Paediatrics",
-      "edition": "",
-      "publication_year": null,
+      "edition": "Third Edition (2008, SUPERSEDED)",
+      "publication_year": 2008,
       "source": "Malawi Ministry of Health",
       "checksum": "66041916d69c65e01b524e80d06cbd558565d61917a1e882b87a095856c79625",
       "pages": 300,
       "chars": 574878,
       "chunks": 793,
-      "status": "ok"
-    },
-    {
-      "file": "Emergency_Assessment_V2.pdf",
-      "doc_id": "emergency-assessment",
-      "title": "Emergency Assessment and Immediate Treatment",
-      "edition": "V2",
-      "publication_year": null,
-      "source": "Malawi Ministry of Health",
-      "checksum": "8deac2f4d182e00e5eb0df82317fbfc3f1ac75c58d7c7a40e728cbfa37cfd87a",
-      "pages": 2,
-      "chars": 5461,
-      "chunks": 4,
       "status": "ok"
     }
   ],
